@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A maths library inspired by numpy which runs on the GPU"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
