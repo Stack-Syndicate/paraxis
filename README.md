@@ -8,4 +8,4 @@
 The goal of this crate is to provide some convenient and performant datastructures centered around CRUD operations on spatially organised data.
 
 ## Features (so far)
-- Morton encoded Octrees (Requires more testing)
+- Morton encoded Octrees (requires more testing)
