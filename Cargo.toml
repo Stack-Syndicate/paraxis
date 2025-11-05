@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A maths library for doing calculations on spatial data."
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
