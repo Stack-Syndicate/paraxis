@@ -130,6 +130,9 @@ impl<T: Send + Sync + Clone + Copy> ZOctree<T> {
 		let mut data_lock = self.data.lock().expect("ZOctree data lock failed in remove");
         data_lock.remove(&self.encode(coords));
     }
+	pub fn clear(&mut self) {
+		self.data = Arc::new(Mutex::new(BTreeMap::new()));
+	}
 }
 
 #[cfg(test)]
