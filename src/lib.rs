@@ -1,5 +1,5 @@
 use crossbeam::queue::SegQueue;
-use glam::U16Vec3;
+use glam::{U16Vec3, Vec3};
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::{collections::BTreeMap, sync::Arc};
@@ -10,19 +10,27 @@ enum MutationOp<T> {
     Remove { key: u64 },
 }
 
+pub struct VoxelData<T: Send + Sync + Clone + Copy + Debug + PartialEq> {
+	position: U16Vec3,
+	compression: u8,
+	payload: T
+}
+
 #[derive(Debug)]
 pub struct ZVoxelOctree<T: Send + Sync + Clone + Copy + Debug + PartialEq> {
     data: BTreeMap<u64, T>,
     mutation_queue: Arc<SegQueue<MutationOp<T>>>,
+	origin: Vec3
 }
 impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
-    pub fn new() -> Self {
+    pub fn new(origin: Vec3) -> Self {
         Self {
             data: BTreeMap::new(),
             mutation_queue: Arc::new(SegQueue::new()),
+			origin
         }
     }
-    pub fn encode(&self, coords: U16Vec3) -> u64 {
+    pub fn encode_position(&self, coords: U16Vec3) -> u64 {
         let coords = coords.to_array();
         let mut morton_code: u64 = 0;
         for b in 0..16 {
@@ -33,7 +41,7 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
         }
         return morton_code;
     }
-    pub fn decode(&self, code: u64) -> U16Vec3 {
+    pub fn decode_position(&self, code: u64) -> U16Vec3 {
         let mut coords = U16Vec3::new(0, 0, 0);
         for b in 0..16 {
             for i in 0..3 {
@@ -45,7 +53,7 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
     }
     pub fn encode_compression(&self, coords: U16Vec3, compression: u8) -> u64 {
 		assert!(compression < 16);
-		let mut code = self.encode(coords);
+		let mut code = self.encode_position(coords);
 		code &= !0b1111;
 		code |= compression as u64;
 		code
@@ -60,42 +68,49 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
     }
 	pub fn insert(&self, entity: T, coords: U16Vec3) {
         self.mutation_queue.push(MutationOp::Insert {
-            key: self.encode(coords),
+            key: self.encode_position(coords),
             val: entity,
         })
     }
-    pub fn get(&self, coords: U16Vec3) -> Option<T> {
-        self.data.get(&self.encode(coords)).copied()
+    pub fn get(&self, coords: U16Vec3) -> Option<VoxelData<T>> {
+		let coords_key = self.encode_position(coords);
+		let spatial_key = coords_key & !0xFFFFu64;
+		let key_val_opt = self.data.range(spatial_key..=spatial_key | 0xFFFF)
+			.next();
+		if let Some((key, val)) = key_val_opt {
+			let payload = val.clone();
+			let position = coords;
+			let compression = self.decode_compression(*key);
+			return Some(VoxelData { position, compression, payload })
+		}
+		return None;
     }
-    pub fn get_neighbours_cross(&self, coords: U16Vec3) -> Vec<Option<T>> {
+    pub fn get_neighbours_cross(&self, coords: U16Vec3) -> Vec<Option<VoxelData<T>>> {
         let mut neighbours = Vec::with_capacity(6);
         for &delta in &[
             (0, 1, 0),  // up
             (0, -1, 0), // down
-            (1, 0, 0),  // right
             (-1, 0, 0), // left
+			(1, 0, 0),  // right
             (0, 0, 1),  // forward
             (0, 0, -1), // back
         ] {
-            let mut new_coords = coords;
-            new_coords[0] = (new_coords[0] as i32 + delta.0) as u16;
-            new_coords[1] = (new_coords[1] as i32 + delta.1) as u16;
-            new_coords[2] = (new_coords[2] as i32 + delta.2) as u16;
-
-            let code = self.encode(new_coords);
-            neighbours.push(self.data.get(&code).cloned());
+            let mut n_coords = coords;
+            n_coords[0] = (n_coords[0] as i32 + delta.0) as u16;
+            n_coords[1] = (n_coords[1] as i32 + delta.1) as u16;
+            n_coords[2] = (n_coords[2] as i32 + delta.2) as u16;
+            neighbours.push(self.get(n_coords));
         }
         neighbours
     }
-    pub fn get_neighbours_area(&self, coords: U16Vec3, radius: usize) -> Vec<(u64, T)> {
+    pub fn get_neighbours_area(&self, coords: U16Vec3, radius: usize) -> Vec<VoxelData<T>> {
         let depth = radius.next_power_of_two().ilog2() as usize;
         let prefix_neighbours = self.get_neighbours_prefix(coords, depth);
         let neighbours = prefix_neighbours
-            .iter()
-            .filter_map(|(code, val)| {
-                let neighbour_position = self.decode(*code);
-                if coords.chebyshev_distance(neighbour_position) <= radius as u16 {
-                    Some((code.clone(), val.clone()))
+            .into_iter()
+            .filter_map(|voxel| {
+                if coords.chebyshev_distance(voxel.position) <= radius as u16 {
+                    Some(voxel)
                 } else {
                     None
                 }
@@ -103,14 +118,17 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
             .collect();
         return neighbours;
     }
-    pub fn get_neighbours_prefix(&self, coords: U16Vec3, depth: usize) -> Vec<(u64, T)> {
-        let code = self.encode(coords);
+    pub fn get_neighbours_prefix(&self, coords: U16Vec3, depth: usize) -> Vec<VoxelData<T>> {
+        let code = self.encode_position(coords);
         let prefix = code >> (16 + depth * 3);
         let start_code = prefix << (16 + depth * 3);
         let end_code = ((prefix + 1) << (16 + depth * 3)) - 1;
         let mut result = Vec::new();
         for (&key, &value) in self.data.range(start_code..=end_code) {
-            result.push((key, value));
+            result.push(VoxelData { 
+				position: self.decode_position(key), 
+				compression: self.decode_compression(key), 
+				payload: value });
         }
         return result;
     }
@@ -124,15 +142,15 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
                 continue;
             }
 
-            let pos = self.decode(code);
+            let pos = self.decode_position(code);
             let neighbours = self.get_neighbours_prefix(pos, depth as usize);
             if neighbours.len() < 2_usize.pow(3*depth as u32) {
                 continue;
             }
-            let first_value = neighbours[0].1;
-            if neighbours.iter().all(|(_, v)| *v == first_value) {
-                for (child_code, _) in &neighbours {
-                    self.data.remove(child_code);
+            let first_value = neighbours[0].payload;
+            if neighbours.iter().all(|voxel| voxel.payload == first_value) {
+                for neighbour in &neighbours {
+                    self.data.remove(&self.encode_position(neighbour.position));
                 }
 
                 let compressed_code = (prefix << (64 - (48 - depth as usize * 3))) | (depth as u64 & 0xF);
@@ -163,7 +181,7 @@ impl<T: Send + Sync + Clone + Copy + Debug + PartialEq> ZVoxelOctree<T> {
     }
     pub fn remove(&self, coords: U16Vec3) {
         self.mutation_queue.push(MutationOp::Remove {
-            key: self.encode(coords),
+            key: self.encode_position(coords),
         });
     }
 }
@@ -175,21 +193,21 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let mut octree = ZVoxelOctree::new();
+        let mut octree = ZVoxelOctree::new(Vec3::new(0., 0., 0.));
         octree.insert("hello", [1, 2, 3].into());
         octree.apply_mutations();
         let value1 = octree.get([1, 2, 3].into());
         let value2 = octree.get([0, 0, 0].into());
-        assert_eq!(value1.unwrap(), "hello");
+        assert_eq!(value1.unwrap().payload, "hello");
         assert!(value2.is_none());
     }
 
     #[test]
     fn remove() {
-        let mut octree = ZVoxelOctree::new();
+        let mut octree = ZVoxelOctree::new(Vec3::new(0., 0., 0.));
         octree.insert(42, [1, 1, 1].into());
         octree.apply_mutations();
-        assert_eq!(octree.get([1, 1, 1].into()).unwrap(), 42);
+        assert_eq!(octree.get([1, 1, 1].into()).unwrap().payload, 42);
         octree.remove([1, 1, 1].into());
         octree.apply_mutations();
         assert!(octree.get([1, 1, 1].into()).is_none());
@@ -197,7 +215,7 @@ mod tests {
 
     #[test]
     fn prefix() {
-        let mut octree = ZVoxelOctree::new();
+        let mut octree = ZVoxelOctree::new(Vec3::new(0., 0., 0.));
         octree.insert(true, [0, 0, 0].into());
         octree.insert(true, [2, 0, 0].into());
         octree.apply_mutations();
@@ -207,7 +225,7 @@ mod tests {
 
     #[test]
     fn concurrent_remove() {
-        let octree = Arc::new(ZVoxelOctree::<u32>::new());
+        let octree = Arc::new(ZVoxelOctree::<u32>::new(Vec3::new(0., 0., 0.)));
         for i in 0..50 {
             let coords = U16Vec3::new(i % 5, (i / 5) % 5, i / 25);
             octree.insert(i.into(), coords);
@@ -230,7 +248,7 @@ mod tests {
 
 	#[test]
 	fn compression() {
-		let mut octree = ZVoxelOctree::new();
+		let mut octree = ZVoxelOctree::new(Vec3::new(0., 0., 0.));
 		octree.insert(true, [0, 0, 1].into());
 		octree.insert(true, [0, 1, 0].into());
 		octree.insert(true, [0, 1, 1].into());
@@ -242,7 +260,7 @@ mod tests {
 		octree.apply_mutations();
 		octree.compress(2);
 		for (&code, &val) in &octree.data {
-			let coords = octree.decode(code);
+			let coords = octree.decode_position(code);
 			let level = octree.decode_compression(code);
 			println!("coords: {:?}, value: {}, level: {}, binary: {:#06b}", coords, val, level, code);
 		}
