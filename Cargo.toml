@@ -10,7 +10,5 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
-bincode = "2.0.1"
-bytemuck = "1.24.0"
-crossbeam = "0.8.4"
 glam = "0.30.9"
+rayon = "1.11.0"
