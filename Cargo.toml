@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A maths library for doing calculations on spatial data."
-version = "0.2.2"
+version = "0.2.5"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
@@ -10,5 +10,7 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
+bincode = "2.0.1"
+bytemuck = "1.24.0"
 crossbeam = "0.8.4"
 glam = "0.30.9"
