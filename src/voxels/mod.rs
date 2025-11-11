@@ -105,7 +105,7 @@ impl SparseVoxelOctree {
         }
     }
     pub fn raycast(&self, ray_origin: Vec3, ray_direction: Vec3) -> Option<(Voxel, Vec3)> {
-        if self.voxels.is_empty() { return None; }
+        if self.voxels.is_empty() || self.voxels.len() == 1 { return None; }
 
 		let root_min = Vec3::new(self.origin.x as f32, self.origin.y as f32, self.origin.z as f32);
 		let root_max = root_min + Vec3::splat(self.size as f32);
