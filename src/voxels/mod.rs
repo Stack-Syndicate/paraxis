@@ -1,127 +1,184 @@
 pub mod morton;
-pub mod brick;
+use core::f32;
 
-use std::collections::BTreeMap;
+use glam::{UVec3, Vec3};
 
-use crate::voxels::morton::*;
-use crate::voxels::brick::*;
+use crate::voxels::morton::{Morton, MortonCode};
 
-pub struct SparseVoxelOctree<B: Brick> {
-    data: BTreeMap<MortonCode, B>,
+fn ray_aabb_intersection(
+    ray_origin: Vec3,
+    ray_direction: Vec3,
+    min_aabb: Vec3,
+    max_aabb: Vec3,
+) -> Option<(f32, Vec3)> {
+	let inverse_direction = Vec3::new(1.0 / ray_direction.x, 1.0 / ray_direction.y, 1.0 / ray_direction.z);
+	
+	let t1 = (min_aabb - ray_origin) * inverse_direction;
+	let t2 = (max_aabb - ray_origin) * inverse_direction;
+
+	let tmin_v = t1.min(t2);
+	let tmax_v = t1.max(t2);
+
+	let tmin = tmin_v.x.max(tmin_v.y).max(tmin_v.z);
+	let tmax = tmax_v.x.min(tmax_v.y).min(tmax_v.z);
+
+	if tmax >= tmin.max(0.0) {
+		let t_hit = tmin.max(0.0);
+		Some((t_hit, ray_origin + ray_direction * t_hit))	
+	} else {
+		None
+	}
 }
-impl<B: Brick + Send + Sync> SparseVoxelOctree<B> {
-    pub fn new() -> Self {
+
+#[derive(Clone, Copy, Debug)]
+pub struct Voxel {
+    children: [Option<usize>; 8],
+    material: u32,
+}
+impl Voxel {
+    pub fn empty() -> Self {
         Self {
-            data: BTreeMap::new(),
+            children: [None; 8],
+            material: 0,
         }
     }
-    pub fn get_voxel(&self, x: u32, y: u32, z: u32) -> Option<B> {
-        let code = u64::encode(x, y, z);
-        let get_opt = self.data.get(&code);
-        if let Some(voxel) = get_opt {
-            Some(voxel.clone())
-        } else {
-            None
+    pub fn is_empty(&self) -> bool {
+        self.children.iter().all(|c| c.is_none())
+    }
+}
+
+#[derive(Debug)]
+pub struct SparseVoxelOctree {
+    voxels: Vec<Voxel>,
+    pub size: u32,
+    origin: UVec3,
+}
+impl SparseVoxelOctree {
+    pub fn empty(size: u32, origin_x: u32, origin_y: u32, origin_z: u32) -> Self {
+        Self {
+            voxels: vec![Voxel {
+                children: [None; 8],
+                material: u32::MAX,
+            }],
+            size,
+            origin: UVec3::new(origin_x, origin_y, origin_z),
         }
     }
-    pub fn get_voxels_radius(&self, x: u32, y: u32, z: u32, r: u32) -> Vec<B> {
-        let min = [
-            x.saturating_sub(r),
-            y.saturating_sub(r),
-            z.saturating_sub(r),
-        ];
-        let max = [
-            x.saturating_add(r),
-            y.saturating_add(r),
-            z.saturating_add(r),
-        ];
-
-        fn collect_parallel<B: Copy + Clone + Send + Sync>(
-            map: &BTreeMap<MortonCode, B>,
-            min: [u32; 3],
-            max: [u32; 3],
-        ) -> Vec<B> {
-            // skip degenerate cube
-            if min[0] > max[0] || min[1] > max[1] || min[2] > max[2] {
-                return Vec::new();
+    pub fn insert(&mut self, x: u32, y: u32, z: u32, material: u32) {
+        let code = MortonCode::encode(x, y, z);
+        let depth = self.size.trailing_zeros();
+        let mut voxel_index = 0;
+        for level in (0..depth).rev() {
+            let child_index = ((code >> (level * 3)) & 0b111) as usize;
+            if self.voxels[voxel_index].children[child_index].is_none() {
+                let new_index = self.voxels.len();
+                self.voxels[voxel_index].children[child_index] = Some(new_index);
+                self.voxels.push(Voxel::empty());
             }
-
-            let min_code = MortonCode::encode(min[0], min[1], min[2]);
-            let max_code = MortonCode::encode(max[0], max[1], max[2]);
-
-            if max_code - min_code <= 8 {
-                return map
-                    .range(min_code..=max_code)
-                    .map(|(_, v)| v.clone())
-                    .collect();
+            voxel_index = self.voxels[voxel_index].children[child_index].unwrap();
+        }
+        self.voxels[voxel_index].material = material;
+    }
+    pub fn remove(&mut self, x: u32, y: u32, z: u32) {
+        let code = MortonCode::encode(x, y, z);
+        let depth = self.size.trailing_zeros();
+        let mut voxel_index = 0;
+        let mut parent_stack = Vec::with_capacity(depth as usize);
+        for level in (0..depth).rev() {
+            let child_index = ((code >> (level * 3)) & 0b111) as usize;
+            match self.voxels[voxel_index].children[child_index] {
+                Some(next) => {
+                    parent_stack.push((voxel_index, child_index));
+                    voxel_index = next;
+                }
+                None => return,
             }
-
-            // find largest axis to split
-            let dx = max[0] - min[0];
-            let dy = max[1] - min[1];
-            let dz = max[2] - min[2];
-
-            if dx > dy && dx > dz {
-                let mid = min[0] + dx / 2;
-                let (left, right) = rayon::join(
-                    || collect_parallel(map, min, [mid, max[1], max[2]]),
-                    || collect_parallel(map, [mid + 1, min[1], min[2]], max),
-                );
-                [left, right].concat()
-            } else if dy > dz {
-                let mid = min[1] + dy / 2;
-                let (left, right) = rayon::join(
-                    || collect_parallel(map, min, [max[0], mid, max[2]]),
-                    || collect_parallel(map, [min[0], mid + 1, min[2]], max),
-                );
-                [left, right].concat()
+        }
+        self.voxels[voxel_index].material = 0;
+        while let Some((parent_idx, child_idx)) = parent_stack.pop() {
+            if self.voxels[voxel_index].is_empty() && self.voxels[voxel_index].material == 0 {
+                self.voxels[parent_idx].children[child_idx] = None;
             } else {
-                let mid = min[2] + dz / 2;
-                let (left, right) = rayon::join(
-                    || collect_parallel(map, min, [max[0], max[1], mid]),
-                    || collect_parallel(map, [min[0], min[1], mid + 1], max),
-                );
-                [left, right].concat()
+                break;
             }
+            voxel_index = parent_idx;
         }
-
-        collect_parallel(&self.data, min, max)
     }
-    // pub fn set_voxel(&mut self, metadata: u64) {
+    pub fn raycast(&self, ray_origin: Vec3, ray_direction: Vec3) -> Option<(Voxel, Vec3)> {
+        if self.voxels.is_empty() { return None; }
 
-	// }
+		let root_min = Vec3::new(self.origin.x as f32, self.origin.y as f32, self.origin.z as f32);
+		let root_max = root_min + Vec3::splat(self.size as f32);
+		
+		let (entry_distance, _) = ray_aabb_intersection(ray_origin, ray_direction, root_min, root_max)?;
+		
+		let mut stack = vec![(0usize, root_min, self.size as f32, entry_distance)];
+		let mut child_hits = Vec::with_capacity(8);
+		while let Some((voxel_index, voxel_min, voxel_size, voxel_entry)) = stack.pop() {
+			let voxel = &self.voxels[voxel_index];
+			if voxel.is_empty() {
+				let hit_position = ray_origin + ray_direction * voxel_entry;
+				return Some((*voxel, hit_position));
+			}
+			let half = voxel_size / 2.0;
+			child_hits.clear();
+			for child in 0..8 {
+				if let Some(voxel_child_index) = voxel.children[child] {
+					let bx = (child & 1) as f32;
+					let by = ((child >> 1) & 1) as f32;
+					let bz = ((child >> 2) & 1) as f32;
+					let child_min = voxel_min + Vec3::new(bx * half, by * half, bz * half);
+					let child_max = child_min + Vec3::splat(half);
+					if let Some((voxel_child_entry_distance, _)) = ray_aabb_intersection(ray_origin, ray_direction, child_min, child_max) {
+						if voxel_child_entry_distance <= f32::MAX {
+							child_hits.push((voxel_child_index, child_min, half, voxel_child_entry_distance));
+						}
+					}
+				}
+			}
+			child_hits.sort_by(|a, b| {
+				a.3.partial_cmp(&b.3).unwrap()
+			});
+			stack.extend(child_hits.iter().rev().cloned());
+		}
+
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
-    fn test_get_voxels_radius() {
-        let mut map: BTreeMap<MortonCode, Brick64> = BTreeMap::new();
-
-        // insert some voxels
-        let voxels = vec![
-            ((0, 0, 0), Brick64 { occupancy: 1 }),
-            ((1, 0, 0), Brick64 { occupancy: 2 }),
-            ((2, 2, 2), Brick64 { occupancy: 3 }),
-            ((5, 5, 5), Brick64 { occupancy: 4 }),
-        ];
-
-        for ((x, y, z), brick) in voxels.iter() {
-            let code = MortonCode::encode(*x, *y, *z);
-            map.insert(code, brick.clone());
+    fn stress_insert_remove() {
+        let size = 64;
+        let mut svo = SparseVoxelOctree::empty(size, 0, 0, 0);
+        for x in 0..size {
+            for y in 0..size {
+                for z in 0..size {
+                    svo.insert(x, y, z, 1);
+                }
+            }
         }
 
-        let mut octree = SparseVoxelOctree::new();
-        octree.data = map;
-        // search around (1,1,1) with radius 1
-        let result: Vec<u64> = octree.get_voxels_radius(1, 1, 1, 1).iter().map(|&v| {
-			v.occupancy
-		}).collect();
-
-        // should include bricks at (0,0,0), (1,0,0), (2,2,2)
-        assert_eq!(result, vec![1, 2, 3]);
+        let total_voxels = svo.voxels.len();
+        assert!(total_voxels > 1, "Tree should have grown after insertions");
+        for x in 0..size {
+            for y in 0..size {
+                for z in 0..size {
+                    svo.remove(x, y, z);
+                }
+            }
+        }
+        assert_eq!(
+            svo.voxels.len(),
+            total_voxels,
+            "Vec should not shrink, but structure should be pruned"
+        );
+        assert!(
+            svo.voxels[0].is_empty(),
+            "Root should be empty after removals"
+        );
     }
 }

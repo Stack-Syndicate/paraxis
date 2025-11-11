@@ -18,7 +18,7 @@ impl Morton for MortonCode {
 	fn encode(x: u32, y: u32, z: u32) -> Self {
 		let mut a: u64 = 0;
 		a |= Self::split_by_3(x) | Self::split_by_3(y) << 1 | Self::split_by_3(z) << 2;
-		a << 1
+		a
 	}
 	fn is_child(&self) -> bool {
 		self & 1 != 0

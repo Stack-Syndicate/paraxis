@@ -11,4 +11,5 @@ repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
 glam = "0.30.9"
+macroquad = "0.4.14"
 rayon = "1.11.0"
