@@ -3,7 +3,7 @@ use core::f32;
 
 use glam::{UVec3, Vec3};
 
-use crate::voxels::morton::{Morton, MortonCode};
+use crate::voxel::morton::{Morton, MortonCode};
 
 fn ray_aabb_intersection(
     ray_origin: Vec3,
