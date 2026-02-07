@@ -1,8 +1,8 @@
 [package]
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
-description = "A maths library for doing calculations on spatial data."
-version = "0.3.1"
+description = "A simple rock-solid mathematics and datastructure library."
+version = "0.0.1"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
@@ -10,5 +10,3 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
-glam = "0.30.9"
-rayon = "1.11.0"
