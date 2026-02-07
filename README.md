@@ -4,8 +4,3 @@
 [![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-7F0000?style=for-the-badge&labelColor=000000&logoColor=white)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/ko--fi-Donate-999999?style=for-the-badge&logo=ko-fi&labelColor=333333)](https://ko-fi.com/stacksyndicate)
-
-The goal of this crate is to provide some convenient and performant datastructures centered around CRUD operations on spatially organised data.
-
-## Features (so far)
-- Morton encoded Octrees (requires more testing)
