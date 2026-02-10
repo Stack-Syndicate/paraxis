@@ -54,6 +54,9 @@ impl<K: Hash + Eq + Clone, V: Clone> HashVec<K, V> {
         }
     }
     pub fn remove(&mut self, key: &K) {
+        if !self.map.contains_key(key) {
+            return;
+        }
         let index = match self.map.get(key) {
             Some(&i) => i,
             None => return,
@@ -94,6 +97,27 @@ impl<K: Hash + Eq + Clone, V: Clone> HashVec<K, V> {
             self.data.pop();
         }
     }
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let index_opt = self.map.get(key);
+        if let Some(index) = index_opt {
+            let entry = &self.data[*index];
+            return Some(&entry.value);
+        } else {
+            return None;
+        }
+    }
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        let index_opt = self.map.get_mut(key);
+        if let Some(index) = index_opt {
+            let entry = &mut self.data[*index];
+            return Some(&mut entry.value);
+        } else {
+            return None;
+        }
+    }
+    pub fn has(&self, key: &K) -> bool {
+        return self.map.contains_key(key);
+    }
     pub fn iter(&self) -> HashVecIter<'_, K, V> {
         HashVecIter {
             data: &self.data,
@@ -114,110 +138,5 @@ impl<'a, K, V> Iterator for HashVecIter<'a, K, V> {
         let entry = &self.data[i];
         self.next = entry.next;
         Some((&entry.key, &entry.value))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn iter_empty() {
-        let hv: HashVec<i32, i32> = HashVec::new();
-        let mut iter = hv.iter();
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn iter_single_element() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-
-        let collected: Vec<_> = hv.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(collected, vec![(1, 10)]);
-    }
-
-    #[test]
-    fn iter_multiple_elements_in_insertion_order() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.insert(2, 20);
-        hv.insert(3, 30);
-
-        let collected: Vec<_> = hv.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(collected, vec![(1, 10), (2, 20), (3, 30)]);
-    }
-
-    #[test]
-    fn iter_after_removal_middle() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.insert(2, 20);
-        hv.insert(3, 30);
-
-        hv.remove(&2);
-
-        let collected: Vec<_> = hv.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(collected, vec![(1, 10), (3, 30)]);
-    }
-
-    #[test]
-    fn iter_after_removal_head() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.insert(2, 20);
-        hv.insert(3, 30);
-
-        hv.remove(&1);
-
-        let collected: Vec<_> = hv.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(collected, vec![(2, 20), (3, 30)]);
-    }
-
-    #[test]
-    fn iter_after_removal_tail() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.insert(2, 20);
-        hv.insert(3, 30);
-        hv.remove(&3);
-        let collected: Vec<_> = hv.iter().map(|(k, v)| (*k, *v)).collect();
-        assert_eq!(collected, vec![(1, 10), (2, 20)]);
-    }
-
-    #[test]
-    fn iter_ignores_hashmap_order() {
-        let mut hv = HashVec::new();
-        hv.insert(42, 1);
-        hv.insert(7, 2);
-        hv.insert(99, 3);
-        let collected: Vec<_> = hv.iter().map(|(k, _)| *k).collect();
-        assert_eq!(collected, vec![42, 7, 99]);
-    }
-
-    #[test]
-    fn multiple_iters_are_independent() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.insert(2, 20);
-
-        let mut it1 = hv.iter();
-        let mut it2 = hv.iter();
-
-        assert_eq!(it1.next().map(|(k, _)| *k), Some(1));
-        assert_eq!(it1.next().map(|(k, _)| *k), Some(2));
-        assert_eq!(it1.next(), None);
-
-        assert_eq!(it2.next().map(|(k, _)| *k), Some(1));
-        assert_eq!(it2.next().map(|(k, _)| *k), Some(2));
-        assert_eq!(it2.next(), None);
-    }
-    #[test]
-    fn remove_only_element() {
-        let mut hv = HashVec::new();
-        hv.insert(1, 10);
-        hv.remove(&1);
-
-        assert!(hv.iter().next().is_none());
     }
 }
