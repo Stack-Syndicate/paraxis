@@ -10,3 +10,4 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
+ahash = "0.8.12"

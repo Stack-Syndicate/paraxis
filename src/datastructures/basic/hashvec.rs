@@ -1,7 +1,11 @@
-use std::{collections::HashMap, hash::Hash};
+use ahash::AHashMap;
+use std::{
+    hash::Hash,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Debug, Clone)]
-struct Entry<K, V> {
+pub struct Entry<K, V> {
     key: K,
     value: V,
     next: Option<usize>,
@@ -21,7 +25,7 @@ impl<K, V> Entry<K, V> {
 #[derive(Clone)]
 pub struct HashVec<K, V: Clone> {
     data: Vec<Entry<K, V>>,
-    map: HashMap<K, usize>,
+    map: AHashMap<K, usize>,
     head: Option<usize>,
     tail: Option<usize>,
 }
@@ -29,7 +33,7 @@ impl<K: Hash + Eq + Clone, V: Clone> HashVec<K, V> {
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
-            map: HashMap::new(),
+            map: AHashMap::new(),
             head: None,
             tail: None,
         }
@@ -118,25 +122,100 @@ impl<K: Hash + Eq + Clone, V: Clone> HashVec<K, V> {
     pub fn has(&self, key: &K) -> bool {
         return self.map.contains_key(key);
     }
-    pub fn iter(&self) -> HashVecIter<'_, K, V> {
-        HashVecIter {
+}
+impl<K, V: Clone> Index<usize> for HashVec<K, V> {
+    type Output = Entry<K, V>;
+    fn index(&self, index: usize) -> &Self::Output {
+        return &self.data[index];
+    }
+}
+impl<K, V: Clone> IndexMut<usize> for HashVec<K, V> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        return &mut self.data[index];
+    }
+}
+impl<'a, K, V: Clone> HashVec<K, V> {
+    pub fn iter(&'a self) -> Iter<'a, K, V> {
+        Iter {
             data: &self.data,
-            next: self.head,
+            head: self.head,
+            tail: self.tail,
         }
     }
 }
-
-pub struct HashVecIter<'a, K, V> {
-    data: &'a [Entry<K, V>],
-    next: Option<usize>,
+impl<'a, K, V: Clone> IntoIterator for &'a HashVec<K, V> {
+    type Item = &'a Entry<K, V>;
+    type IntoIter = Iter<'a, K, V>;
+    fn into_iter(self) -> Self::IntoIter {
+        return self.iter();
+    }
 }
-impl<'a, K, V> Iterator for HashVecIter<'a, K, V> {
-    type Item = (&'a K, &'a V);
+pub struct Iter<'a, K, V> {
+    data: &'a [Entry<K, V>],
+    head: Option<usize>,
+    tail: Option<usize>,
+}
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+    type Item = &'a Entry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let i = self.next?;
+        let i = self.head?;
         let entry = &self.data[i];
-        self.next = entry.next;
-        Some((&entry.key, &entry.value))
+        self.head = entry.next;
+        Some(entry)
+    }
+}
+impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let i = self.tail?;
+        let entry = &self.data[i];
+        self.tail = entry.previous;
+        Some(entry)
+    }
+}
+pub struct IterMut<'a, K, V> {
+    ptr: *mut Entry<K, V>, // pointer to the data
+    head: Option<usize>,
+    tail: Option<usize>,
+    _marker: std::marker::PhantomData<&'a mut Entry<K, V>>,
+}
+impl<'a, K, V> Iterator for IterMut<'a, K, V> {
+    type Item = &'a mut Entry<K, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.head?;
+        unsafe {
+            let entry = &mut *self.ptr.add(i);
+            self.head = entry.next;
+            Some(entry)
+        }
+    }
+}
+impl<'a, K, V> DoubleEndedIterator for IterMut<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let i = self.tail?;
+        unsafe {
+            let entry = &mut *self.ptr.add(i);
+            self.tail = entry.previous;
+            Some(entry)
+        }
+    }
+}
+impl<'a, K, V: Clone> HashVec<K, V> {
+    pub fn iter_mut(&'a mut self) -> IterMut<'a, K, V> {
+        IterMut {
+            ptr: self.data.as_mut_ptr(),
+            head: self.head,
+            tail: self.tail,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+impl<'a, K, V: Clone> IntoIterator for &'a mut HashVec<K, V> {
+    type Item = &'a mut Entry<K, V>;
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
