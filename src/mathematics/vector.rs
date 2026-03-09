@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Index, Mul, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Sub};
 use std::simd::Simd;
 use std::simd::num::SimdFloat;
 
@@ -39,41 +39,33 @@ macro_rules! impl_elementwise_ops {
         )*
     };
 }
+macro_rules! impl_scalar_ops {
+    ($type:ty; $($trait:ident $method:ident $op:tt), *) => {
+        $(
+            impl<const N: usize> $trait<$type> for Vector<N> {
+                type Output = Vector<N>;
+                fn $method(self, rhs: $type) -> Self::Output {
+                    Vector { inner: self.inner $op Simd::splat(rhs as f32) }
+                }
+            }
+            impl<const N: usize> $trait<$type> for &Vector<N> {
+                type Output = Vector<N>;
+                fn $method(self, rhs: $type) -> Self::Output {
+                    Vector { inner: self.inner $op Simd::splat(rhs as f32) }
+                }
+            }
+        )*
+    };
+}
+macro_rules! impl_scalar_ops_typed {
+    ($($type:ty), *) => {
+        $(
+            impl_scalar_ops!($type; Add add +, Sub sub -, Mul mul *, Div div /);
+        )*
+    };
+}
 impl_elementwise_ops!(Add => add, Sub => sub, Mul => mul, Div => div);
-impl<const N: usize> Mul<f32> for Vector<N> {
-    type Output = Vector<N>;
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            inner: self.inner * Simd::splat(rhs),
-        }
-    }
-}
-impl<const N: usize> Div<f32> for Vector<N> {
-    type Output = Vector<N>;
-    fn div(self, rhs: f32) -> Self::Output {
-        Self {
-            inner: self.inner / Simd::splat(rhs),
-        }
-    }
-}
-impl<const N: usize> Mul<f32> for &Vector<N> {
-    type Output = Vector<N>;
-    fn mul(self, rhs: f32) -> Self::Output {
-        Vector {
-            inner: self.inner * Simd::splat(rhs),
-        }
-        .to_owned()
-    }
-}
-impl<const N: usize> Div<f32> for &Vector<N> {
-    type Output = Vector<N>;
-    fn div(self, rhs: f32) -> Self::Output {
-        Vector {
-            inner: self.inner / Simd::splat(rhs),
-        }
-        .to_owned()
-    }
-}
+impl_scalar_ops_typed!(f32, f64, u32, u64);
 impl<const N: usize> Mul<f32> for &mut Vector<N> {
     type Output = Vector<N>;
     fn mul(self, rhs: f32) -> Self::Output {
@@ -97,6 +89,11 @@ impl<const N: usize> Index<usize> for Vector<N> {
     fn index(&self, index: usize) -> &Self::Output {
         let val = &self.inner[index];
         &val
+    }
+}
+impl<const N: usize> IndexMut<usize> for Vector<N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.inner[index]
     }
 }
 impl<const N: usize> Vector<N> {
@@ -138,6 +135,9 @@ impl<const N: usize> Vector<N> {
     }
     pub fn max(&self) -> f32 {
         self.inner.reduce_max()
+    }
+    pub fn to_vec(&self) -> Vec<f32> {
+        self.inner.to_array().to_vec()
     }
 }
 impl Vector<3> {

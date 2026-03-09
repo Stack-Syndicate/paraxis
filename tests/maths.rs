@@ -1,7 +1,7 @@
 use paraxis::mathematics::{matrix::Matrix, vector::Vector};
 
 #[test]
-fn add_prod_dot_cross() {
+fn vector_add_prod_dot_cross() {
     let v1 = Vector::new([1.0, 2.0, 3.0]);
     let v2 = Vector::new([1.0; 3]);
     assert_eq!(v1 + v2, Vector::new([2.0, 3.0, 4.0]));
@@ -39,4 +39,25 @@ fn matrix_operations_various_shapes() {
 
     let dot = a.dot(&a);
     assert!(dot > 0.0);
+}
+
+#[test]
+fn test_eigen_qr() {
+    let data = [[2.0, 1.0, 0.0], [1.0, 2.0, 1.0], [0.0, 1.0, 2.0]];
+    let a = Matrix::<3, 3>::new(data);
+    let (eigenvalues, eigenvectors) = a.eigen();
+    let expected = [0.5858_f32, 2.0, 3.4142];
+    let mut computed: Vec<f32> = eigenvalues.to_vec();
+    computed.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let mut expected_sorted = expected.to_vec();
+    expected_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    for (c, e) in computed.iter().zip(expected_sorted.iter()) {
+        assert!(
+            (c - e).abs() < 1e-2,
+            "Eigenvalue mismatch: got {}, expected {}",
+            c,
+            e
+        );
+    }
+    println!("Eigenvalues passed: {:?}", computed);
 }
