@@ -2,10 +2,14 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A simple rock-solid mathematics library."
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
 license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
+
+[dependencies]
+rand = "0.10.0"
+rand_distr = "0.6.0"
 
