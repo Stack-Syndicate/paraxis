@@ -1,4 +1,4 @@
-use paraxis::mathematics::{matrix::Matrix, vector::Vector};
+use paraxis::mathematics::{ivector::IVector, matrix::Matrix, vector::Vector};
 
 #[test]
 fn vector_add_prod_dot_cross() {
@@ -7,6 +7,12 @@ fn vector_add_prod_dot_cross() {
     assert_eq!(v1 + v2, Vector::new([2.0, 3.0, 4.0]));
     assert_eq!(v1.dot(&v2), (v1 * v2).sum());
     assert_eq!(v1.cross(&v2), Vector::new([-1.0, 2.0, -1.0]));
+
+    let v1 = IVector::new([1, 2, 3]);
+    let v2 = IVector::new([1; 3]);
+    assert_eq!(v1 + v2, IVector::new([2, 3, 4]));
+    assert_eq!(v1.dot(&v2), (v1 * v2).sum());
+    assert_eq!(v1.cross(&v2), IVector::new([-1, 2, -1]));
 }
 
 #[test]
@@ -113,7 +119,7 @@ fn solve_linear() {
 }
 
 #[test]
-fn inverse() {
+fn inverse_matrix() {
     let a = Matrix::<3, 3>::new([[4.0, 7.0, 2.0], [3.0, 6.0, 1.0], [2.0, 5.0, 1.0]]);
     let inverse = a.inverse();
     let identity = Matrix::<3, 3>::eye();
