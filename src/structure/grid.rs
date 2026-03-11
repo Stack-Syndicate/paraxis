@@ -37,6 +37,15 @@ impl<T: Clone, const N: usize> Grid<T, N> {
     pub fn get(&self, position: IVector<N>) -> Option<&T> {
         self.inner.get(&position)
     }
+    pub fn shape(&self) -> IVector<N> {
+        self.shape
+    }
+    pub fn positions(&self) -> Vec<IVector<N>> {
+        self.inner.keys().cloned().collect()
+    }
+    pub fn elements(&self) -> Vec<T> {
+        self.inner.values().cloned().collect()
+    }
 }
 impl<T: Clone> Grid<T, 2> {
     fn get_row(&self, y: i32) -> Vec<T> {
