@@ -4,7 +4,7 @@ use std::simd::Simd;
 use rand::RngExt;
 use rand_distr::{Normal, Uniform};
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct IVector<const N: usize> {
     inner: Simd<i32, N>,
 }
