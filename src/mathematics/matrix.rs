@@ -119,6 +119,59 @@ impl<const N: usize> Matrix<N, N> {
         }
         Matrix::new(slice)
     }
+    pub fn lu(&self) -> (Matrix<N, N>, Matrix<N, N>) {
+        let mut l = Matrix::<N, N>::eye();
+        let mut u = Matrix::<N, N>::new([[0.0; N]; N]);
+        for i in 0..N {
+            for j in i..N {
+                let mut sum = 0.0;
+                for k in 0..i {
+                    sum += l.inner[i][k] * u.inner[k][j];
+                }
+                u.inner[i][j] = self.inner[i][j] - sum;
+            }
+            for j in (i + 1)..N {
+                let mut sum = 0.0;
+                for k in 0..i {
+                    sum += l.inner[j][k] * u.inner[k][i];
+                }
+                l.inner[j][i] = (self.inner[j][i] - sum) / u.inner[i][i];
+            }
+        }
+        (l, u)
+    }
+    pub fn solve_linear(&self, b: &Vector<N>) -> Vector<N> {
+        let (l, u) = self.lu();
+        let mut y = Vector::new([0f32; N]);
+        let mut x = Vector::new([0f32; N]);
+        for i in 0..N {
+            let mut sum = 0.0;
+            for j in 0..i {
+                sum += l.inner[i][j] * y[j];
+            }
+            y[i] = b[i] - sum;
+        }
+        for i in (0..N).rev() {
+            let mut sum = 0.0;
+            for j in (i + 1)..N {
+                sum += u.inner[i][j] * x[j];
+            }
+            x[i] = (y[i] - sum) / u.inner[i][i];
+        }
+        x
+    }
+    pub fn inverse(&self) -> Matrix<N, N> {
+        let mut inverse = Matrix::<N, N>::new([[0.0; N]; N]);
+        let identity = Matrix::<N, N>::eye();
+        for col in 0..N {
+            let e = identity.row(col);
+            let x = self.solve_linear(&e);
+            for row in 0..N {
+                inverse.inner[row][col] = x[row];
+            }
+        }
+        inverse
+    }
     pub fn eigen(&self) -> (Vector<N>, Matrix<N, N>) {
         let mut a = self.clone();
         let mut v = Matrix::<N, N>::eye();

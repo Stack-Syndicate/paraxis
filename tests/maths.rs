@@ -42,7 +42,7 @@ fn matrix_operations_various_shapes() {
 }
 
 #[test]
-fn test_eigen_qr() {
+fn eigen_qr() {
     let data = [[2.0, 1.0, 0.0], [1.0, 2.0, 1.0], [0.0, 1.0, 2.0]];
     let a = Matrix::<3, 3>::new(data);
     let (eigenvalues, eigenvectors) = a.eigen();
@@ -60,4 +60,77 @@ fn test_eigen_qr() {
         );
     }
     println!("Eigenvalues passed: {:?}", computed);
+}
+
+#[test]
+fn lu_decomposition() {
+    let a = Matrix::<3, 3>::new([[2.0, 1.0, 1.0], [4.0, -6.0, 0.0], [-2.0, 7.0, 2.0]]);
+    let (l, u) = a.lu();
+    let mut reconstructed = Matrix::<3, 3>::new([[0.0; 3]; 3]);
+    for i in 0..3 {
+        for j in 0..3 {
+            let mut sum = 0.0;
+            for k in 0..3 {
+                sum += l.inner[i][k] * u.inner[k][j];
+            }
+            reconstructed.inner[i][j] = sum;
+        }
+    }
+    for i in 0..3 {
+        for j in 0..3 {
+            let diff = (reconstructed.inner[i][j] - a.inner[i][j]).abs();
+            assert!(
+                diff < 1e-5,
+                "Mismatch at row {}, col {}: {} vs {} (diff={})",
+                i,
+                j,
+                reconstructed.inner[i][j],
+                a.inner[i][j],
+                diff
+            );
+        }
+    }
+}
+
+#[test]
+fn solve_linear() {
+    let a = Matrix::<3, 3>::new([[2.0, 1.0, 1.0], [4.0, -6.0, 0.0], [-2.0, 7.0, 2.0]]);
+    let b = Vector::new([5.0, -2.0, 9.0]);
+    let x = a.solve_linear(&b);
+    for i in 0..3 {
+        let mut sum = 0.0;
+        for j in 0..3 {
+            sum += a.inner[i][j] * x[j];
+        }
+        assert!(
+            (sum - b[i]).abs() < 1e-5,
+            "Mismatch at row {}: {} vs {}",
+            i,
+            sum,
+            b[i]
+        );
+    }
+}
+
+#[test]
+fn inverse() {
+    let a = Matrix::<3, 3>::new([[4.0, 7.0, 2.0], [3.0, 6.0, 1.0], [2.0, 5.0, 1.0]]);
+    let inverse = a.inverse();
+    let identity = Matrix::<3, 3>::eye();
+    for i in 0..3 {
+        for j in 0..3 {
+            let mut sum = 0.0;
+            for k in 0..3 {
+                sum += a.inner[i][k] * inverse.inner[k][j];
+            }
+            assert!(
+                (sum - identity.inner[i][j]).abs() < 1e-5,
+                "Mismatch at ({},{}) : {} vs {}",
+                i,
+                j,
+                sum,
+                identity.inner[i][j]
+            );
+        }
+    }
 }

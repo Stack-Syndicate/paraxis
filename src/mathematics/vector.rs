@@ -141,6 +141,21 @@ impl<const N: usize> Vector<N> {
     }
 }
 impl Vector<3> {
+    pub fn xxx(&self) -> Self {
+        Self::new([self.inner[0]; 3])
+    }
+    pub fn yyy(&self) -> Self {
+        Self::new([self.inner[1], self.inner[1], self.inner[1]])
+    }
+    pub fn zzz(&self) -> Self {
+        Self::new([self.inner[2], self.inner[2], self.inner[2]])
+    }
+    pub fn yzx(&self) -> Self {
+        Self::new([self.inner[1], self.inner[2], self.inner[0]])
+    }
+    pub fn xzy(&self) -> Self {
+        Self::new([self.inner[0], self.inner[2], self.inner[1]])
+    }
     pub fn cross(&self, other: &Self) -> Self {
         let a = self.inner;
         let b = other.inner;
