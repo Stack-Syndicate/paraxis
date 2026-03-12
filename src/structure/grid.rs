@@ -1,16 +1,17 @@
+use std::cmp::Ordering;
+
 use crate::mathematics::ivector::IVector;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub struct Grid<T, const N: usize> {
-    inner: HashMap<IVector<N>, T>,
+    inner: IndexMap<IVector<N>, T>,
     shape: IVector<N>,
 }
-
 impl<T: Clone, const N: usize> Grid<T, N> {
     pub fn new(shape: IVector<N>) -> Self {
         Self {
-            inner: HashMap::new(),
+            inner: IndexMap::new(),
             shape,
         }
     }
@@ -31,8 +32,14 @@ impl<T: Clone, const N: usize> Grid<T, N> {
     pub fn insert(&mut self, item: T, position: IVector<N>) {
         self.inner.insert(position, item);
     }
-    pub fn remove(&mut self, position: IVector<N>) {
-        self.inner.remove(&position);
+    pub fn swap_remove(&mut self, position: IVector<N>) {
+        self.inner.swap_remove(&position);
+    }
+    pub fn shift_remove(&mut self, position: IVector<N>) {
+        self.inner.shift_remove(&position);
+    }
+    pub fn sort_by<F: FnMut(&IVector<N>, &T, &IVector<N>, &T) -> Ordering>(&mut self, cmp: F) {
+        self.inner.sort_by(cmp);
     }
     pub fn get(&self, position: IVector<N>) -> Option<&T> {
         self.inner.get(&position)
@@ -53,13 +60,11 @@ impl<T: Clone> Grid<T, 2> {
             .filter_map(|x| self.inner.get(&IVector::new([x, y])).cloned())
             .collect()
     }
-
     fn get_col(&self, x: i32) -> Vec<T> {
         (0..self.shape[1])
             .filter_map(|y| self.inner.get(&IVector::new([x, y])).cloned())
             .collect()
     }
-
     pub fn top(&self) -> Vec<T> {
         self.get_row(self.shape[1] - 1)
     }
@@ -73,7 +78,6 @@ impl<T: Clone> Grid<T, 2> {
         self.get_col(self.shape[0] - 1)
     }
 }
-
 impl<T: Clone> Grid<T, 3> {
     fn get_plane(&self, axis: usize, index: i32) -> Vec<T> {
         self.inner

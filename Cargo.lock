@@ -159,8 +159,9 @@ dependencies = [
 
 [[package]]
 name = "paraxis"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
+ "indexmap",
  "rand",
  "rand_distr",
 ]
