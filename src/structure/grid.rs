@@ -38,6 +38,12 @@ impl<T: Clone, const N: usize> Grid<T, N> {
     pub fn shift_remove(&mut self, position: IVector<N>) {
         self.inner.shift_remove(&position);
     }
+    pub fn first(&self) -> Option<(&IVector<N>, &T)> {
+        self.inner.first()
+    }
+    pub fn last(&self) -> Option<(&IVector<N>, &T)> {
+        self.inner.last()
+    }
     pub fn sort_by<F: FnMut(&IVector<N>, &T, &IVector<N>, &T) -> Ordering>(&mut self, cmp: F) {
         self.inner.sort_by(cmp);
     }
