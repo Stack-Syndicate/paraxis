@@ -11,7 +11,6 @@ repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
 indexmap = "2.13.0"
-rand = { version = "0.10.0", default-features = false, features = ["thread_rng"] }
-rand_distr = { version = "0.6.0", default-features = false }
+nalgebra = "0.34.1"
 
 [dev-dependencies]
