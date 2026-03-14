@@ -54,7 +54,10 @@ impl<T: Default + Clone + Eq, const D: usize, const N: usize> Grid<T, D, N> {
         let index = self.get_index(&position);
         self.inner[index] = T::default();
     }
-    pub fn orthogonal_neighbours(&self, position: SVector<i32, D>) -> Vec<Option<&T>> {
+    pub fn orthogonal_neighbours(
+        &self,
+        position: SVector<i32, D>,
+    ) -> Vec<(SVector<i32, D>, Option<&T>)> {
         let mut neighbours = Vec::with_capacity(2 * D);
         for axis in 0..D {
             for direction in [-1, 1] {
@@ -62,13 +65,16 @@ impl<T: Default + Clone + Eq, const D: usize, const N: usize> Grid<T, D, N> {
                 neighbour_offset[axis] = direction;
                 let neighbour_position = position + neighbour_offset;
                 let neighbour = self.get(neighbour_position);
-                neighbours.push(neighbour);
+                neighbours.push((neighbour_position, neighbour));
             }
         }
         neighbours
     }
 
-    pub fn moore_neighbours(&self, position: SVector<i32, D>) -> Vec<Option<&T>> {
+    pub fn moore_neighbours(
+        &self,
+        position: SVector<i32, D>,
+    ) -> Vec<(SVector<i32, D>, Option<&T>)> {
         let total = 3_usize.pow(D as u32);
         let mut neighbours = Vec::with_capacity(total - 1);
         for i in 0..total {
@@ -79,7 +85,7 @@ impl<T: Default + Clone + Eq, const D: usize, const N: usize> Grid<T, D, N> {
                 temp /= 3;
             }
             if offset.iter().any(|&v| v != 0) {
-                neighbours.push(self.get(position + offset));
+                neighbours.push((offset, self.get(position + offset)));
             }
         }
         neighbours
@@ -237,7 +243,11 @@ mod tests {
         grid.insert(Vector2::new(1, 0), "Right".to_string());
         let neighbours = grid.orthogonal_neighbours(center);
         assert_eq!(neighbours.len(), 4);
-        let found = neighbours.into_iter().flatten().count();
+        let found = neighbours
+            .iter()
+            .filter(|a| a.1.is_some())
+            .collect::<Vec<_>>()
+            .len();
         assert_eq!(found, 1);
     }
 
@@ -246,11 +256,13 @@ mod tests {
         let mut grid = Grid3D::new();
         let center = Vector3::new(0, 0, 0);
         grid.insert(Vector3::new(1, 1, 1), 42);
-
         let neighbours = grid.moore_neighbours(center);
-
         assert_eq!(neighbours.len(), 26);
-        let found = neighbours.into_iter().flatten().count();
+        let found = neighbours
+            .iter()
+            .filter(|a| a.1.is_some())
+            .collect::<Vec<_>>()
+            .len();
         assert_eq!(found, 1);
     }
 
