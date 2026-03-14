@@ -172,7 +172,7 @@ mod tests {
     type GridMap3D = GridMap<i32, 3>;
 
     #[test]
-    fn test_insert_get_and_mut() {
+    fn insert_get_and_mut() {
         let mut grid = GridMap2D::new();
         let pos = Vector2::new(1, 2);
         grid.insert(pos, "Hello".to_string());
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_trait() {
+    fn index_trait() {
         let mut grid = GridMap2D::new();
         let pos = Vector2::new(5, 5);
         grid.insert(pos, "Target".to_string());
@@ -193,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn test_removal() {
+    fn removal() {
         let mut grid = GridMap2D::new();
         grid.insert(Vector2::new(0, 0), "A".to_string());
         grid.insert(Vector2::new(1, 1), "B".to_string());
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sorting_and_iteration() {
+    fn sorting_and_iteration() {
         let mut grid = GridMap2D::new();
         grid.insert(Vector2::new(2, 0), "C".to_string());
         grid.insert(Vector2::new(0, 0), "A".to_string());
@@ -220,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn test_orthogonal_neighbours() {
+    fn orthogonal_neighbours() {
         let mut grid = GridMap2D::new();
         let center = Vector2::new(0, 0);
         grid.insert(Vector2::new(1, 0), "Right".to_string());
@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_moore_neighbours_3d() {
+    fn moore_neighbours_3d() {
         let mut grid = GridMap3D::new();
         let center = Vector3::new(0, 0, 0);
         grid.insert(Vector3::new(1, 1, 1), 42);
@@ -249,7 +249,7 @@ mod tests {
         assert_eq!(found, 1);
     }
     #[test]
-    fn test_raycast_multiple_hits() {
+    fn raycast_multiple_hits() {
         let mut grid = GridMap2D::new();
         grid.insert(Vector2::new(5, 1), "Wall 1".to_string());
         grid.insert(Vector2::new(6, 0), "Wall 2".to_string());
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_raycast_first_with_normal() {
+    fn raycast_first_with_normal() {
         let mut grid = GridMap2D::new();
         grid.insert(Vector2::new(2, 0), "Target".to_string());
         let origin = Vector2::new(0.5, 0.5);
@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn test_raycast_miss() {
+    fn raycast_miss() {
         let mut grid = GridMap2D::new();
         grid.insert(Vector2::new(0, 2), "Top".to_string());
 
