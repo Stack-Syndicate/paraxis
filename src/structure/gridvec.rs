@@ -1,7 +1,5 @@
 use std::{cmp::Ordering, ops::Index, usize};
 
-use nalgebra::SVector;
-
 pub struct Grid<T: Default + Clone + Eq, const D: usize, const N: usize> {
     inner: Vec<T>,
 }
@@ -183,7 +181,6 @@ impl<const D: usize, T: Default + Clone + Eq, const N: usize> Index<SVector<i32,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{Vector2, Vector3};
 
     type Grid2D = Grid<String, 2, 50>;
     type Grid3D = Grid<i32, 3, 50>;

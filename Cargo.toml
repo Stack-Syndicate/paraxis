@@ -10,7 +10,6 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dependencies]
-indexmap = "2.13.0"
-nalgebra = "0.34.1"
+ahash = "0.8.12"
 
 [dev-dependencies]
