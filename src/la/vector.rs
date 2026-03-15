@@ -1,28 +1,13 @@
 use std::{
     ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
-    simd::{SimdElement, StdFloat, prelude::*},
+    simd::{SimdElement, prelude::*},
 };
 
-pub trait Scalar: SimdElement + Default {
-    const ONE: Self;
-}
-
-impl Scalar for f32 {
-    const ONE: f32 = 1.0;
-}
-impl Scalar for i32 {
-    const ONE: i32 = 1;
-}
-impl Scalar for f64 {
-    const ONE: f64 = 1.0;
-}
-impl Scalar for i64 {
-    const ONE: i64 = 1;
-}
+use crate::la::Scalar;
 
 #[derive(Clone, Copy)]
 pub struct Vector<T: SimdElement, const N: usize> {
-    inner: Simd<T, N>,
+    pub inner: Simd<T, N>,
 }
 
 impl<T: SimdElement, const N: usize> Add for Vector<T, N>
@@ -218,14 +203,14 @@ where
     }
 }
 
-impl<T, const N: usize> Vector<T, N>
+impl<T: Scalar, const N: usize> Vector<T, N>
 where
-    T: SimdElement + StdFloat + Default + PartialEq + Div<Output = Self>,
+    T: SimdElement + Default + PartialEq + Div<Output = T>,
     Simd<T, N>: SimdFloat<Scalar = T>
         + Mul<Output = Simd<T, N>>
         + Sub<Output = Simd<T, N>>
         + Add<Output = Simd<T, N>>,
-    Self: Div<T, Output = Self> + BitOr<Output = T> + Mul<Output = Self>,
+    Self: Div<T, Output = Self> + BitOr<Output = T> + Mul<T, Output = Self> + Mul<Output = Self>,
 {
     pub fn length(self) -> T {
         let dot = (self.inner * self.inner).reduce_sum();
@@ -233,11 +218,7 @@ where
     }
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len != T::default() {
-            self / len
-        } else {
-            self
-        }
+        if len != T::ZERO { self / len } else { self }
     }
     pub fn distance(self, other: Self) -> T {
         (self - other).length()
@@ -270,8 +251,13 @@ impl<T: SimdElement + Default + Scalar, const N: usize> Vector<T, N> {
         }
     }
     pub fn unit(axis: usize) -> Self {
-        let mut ui = Simd::from_slice(&[T::default(); N]);
+        let mut ui = Simd::from_slice(&[T::ZERO; N]);
         ui[axis] = T::ONE;
         Self { inner: ui }
+    }
+}
+impl<T: SimdElement + Default + Scalar, const N: usize> From<[T; N]> for Vector<T, N> {
+    fn from(arr: [T; N]) -> Self {
+        Self::from_slice(&arr)
     }
 }
