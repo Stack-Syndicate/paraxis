@@ -62,7 +62,6 @@ impl<'a, T: Eq, const N: usize> GridMap<T, N> {
         &self,
         min_corner: Vector<i32, N>,
         size: i32,
-        periodic: bool,
         shape: Option<&[usize; N]>,
         mut f: F,
     ) where
@@ -72,15 +71,13 @@ impl<'a, T: Eq, const N: usize> GridMap<T, N> {
         let total_cells = size.pow(N as u32);
         for _ in 0..total_cells {
             let mut current_position = min_corner + Vector::from(offset);
-            if periodic {
-                if let Some(bounds) = shape {
-                    let mut wrapped_coords = [0i32; N];
-                    for axis in 0..N {
-                        let limit = bounds[axis] as i32;
-                        wrapped_coords[axis] = current_position.inner[axis].rem_euclid(limit);
-                    }
-                    current_position = Vector::from(wrapped_coords);
+            if let Some(bounds) = shape {
+                let mut wrapped_coords = [0i32; N];
+                for axis in 0..N {
+                    let limit = bounds[axis] as i32;
+                    wrapped_coords[axis] = current_position.inner[axis].rem_euclid(limit);
                 }
+                current_position = Vector::from(wrapped_coords);
             }
             f(current_position, self.get(&current_position));
             for axis in 0..N {
