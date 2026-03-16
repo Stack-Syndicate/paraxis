@@ -200,4 +200,13 @@ impl<const N: usize> Vector<i32, N> {
         }
         Vector::from(coordinates)
     }
+    pub fn flatten_index(position: Vector<i32, N>, shape: &[usize; N]) -> usize {
+        let mut index = 0;
+        let mut stride = 1;
+        for axis in 0..N {
+            index += position.inner[axis] as usize * stride;
+            stride *= shape[axis];
+        }
+        index
+    }
 }
