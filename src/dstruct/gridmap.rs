@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use dashmap::{
     DashMap, Entry,
+    iter::{Iter, IterMut},
     mapref::one::{Ref, RefMut},
 };
 
@@ -58,5 +59,11 @@ impl<'a, T: Eq + Hash, const N: usize> GridMap<T, N> {
                 }
             }
         }
+    }
+    pub fn iter(&self) -> Iter<'_, Vector<i32, N>, T> {
+        self.inner.iter()
+    }
+    pub fn iter_mut(&mut self) -> IterMut<'_, Vector<i32, N>, T> {
+        self.inner.iter_mut()
     }
 }
