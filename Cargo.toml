@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A simple rock-solid mathematics library."
-version = "0.8.15"
+version = "0.8.16"
 edition = "2024"
 keywords = ["maths", "gpu", "vectorization", "linear-algebra", "numpy"]
 categories = ["mathematics"]
