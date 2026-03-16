@@ -6,6 +6,7 @@ use dashmap::{
 
 use crate::maths::la::vector::Vector;
 
+#[derive(Debug, Clone)]
 pub struct GridMap<T: Eq, const N: usize> {
     inner: DashMap<Vector<i32, N>, T>,
 }
