@@ -189,3 +189,15 @@ impl<const N: usize> Vector<f64, N> {
         }
     }
 }
+
+impl<const N: usize> Vector<i32, N> {
+    pub fn unflatten_index(index: usize, shape: &[usize; N]) -> Vector<i32, N> {
+        let mut index = index;
+        let mut coordinates = [0i32; N];
+        for axis in 0..N {
+            coordinates[axis] = (index % shape[axis]) as i32;
+            index /= shape[axis];
+        }
+        Vector::from(coordinates)
+    }
+}
