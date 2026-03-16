@@ -58,6 +58,41 @@ impl<'a, T: Eq, const N: usize> GridMap<T, N> {
             }
         }
     }
+    pub fn for_each_in_window<F>(
+        &self,
+        min_corner: Vector<i32, N>,
+        size: i32,
+        periodic: bool,
+        shape: Option<&[usize; N]>,
+        mut f: F,
+    ) where
+        F: FnMut(Vector<i32, N>, Option<Ref<'_, Vector<i32, N>, T>>),
+    {
+        let mut offset = [0i32; N];
+        let total_cells = size.pow(N as u32);
+        for _ in 0..total_cells {
+            let mut current_position = min_corner + Vector::from(offset);
+            if periodic {
+                if let Some(bounds) = shape {
+                    let mut wrapped_coords = [0i32; N];
+                    for axis in 0..N {
+                        let limit = bounds[axis] as i32;
+                        wrapped_coords[axis] = current_position.inner[axis].rem_euclid(limit);
+                    }
+                    current_position = Vector::from(wrapped_coords);
+                }
+            }
+            f(current_position, self.get(&current_position));
+            for axis in 0..N {
+                offset[axis] += 1;
+                if offset[axis] < size {
+                    break;
+                } else {
+                    offset[axis] = 0;
+                }
+            }
+        }
+    }
     pub fn iter(&self) -> Iter<'_, Vector<i32, N>, T> {
         self.inner.iter()
     }
