@@ -1,107 +1,73 @@
-use crate::la::{Scalar, vector::Vector};
+use crate::maths::la::{Scalar, vector::Vector};
 use std::{
     iter::Sum,
     ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
     simd::{SimdElement, prelude::*},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct Matrix<T: SimdElement, const N: usize, const M: usize> {
     pub rows: [Vector<T, M>; N],
 }
-
-impl<T: SimdElement, const N: usize, const M: usize> Add for Matrix<T, N, M>
-where
-    Vector<T, M>: Add<Output = Vector<T, M>> + Copy,
-{
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            rows: std::array::from_fn(|i| self.rows[i] + rhs.rows[i]),
+macro_rules! impl_matrix_arithmetic {
+    ($trait:ident, $method:ident, $assign_trait:ident, $assign_method:ident) => {
+        impl<T: SimdElement, const N: usize, const M: usize> $trait<Self> for Matrix<T, N, M>
+        where
+            Vector<T, M>: $trait<Output = Vector<T, M>> + Copy,
+        {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: Self) -> Self {
+                Self {
+                    rows: std::array::from_fn(|i| self.rows[i].$method(rhs.rows[i])),
+                }
+            }
         }
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> AddAssign for Matrix<T, N, M>
-where
-    Vector<T, M>: Add<Output = Vector<T, M>> + Copy,
-{
-    fn add_assign(&mut self, rhs: Self) {
-        self.rows = std::array::from_fn(|i| self.rows[i] + rhs.rows[i]);
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> Sub for Matrix<T, N, M>
-where
-    Vector<T, M>: Sub<Output = Vector<T, M>> + Copy,
-{
-    type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            rows: std::array::from_fn(|i| self.rows[i] - rhs.rows[i]),
+        impl<T: SimdElement, const N: usize, const M: usize> $assign_trait<Self> for Matrix<T, N, M>
+        where
+            Vector<T, M>: $assign_trait + Copy,
+        {
+            #[inline]
+            fn $assign_method(&mut self, rhs: Self) {
+                for i in 0..N {
+                    self.rows[i].$assign_method(rhs.rows[i]);
+                }
+            }
         }
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> SubAssign for Matrix<T, N, M>
-where
-    Vector<T, M>: Sub<Output = Vector<T, M>> + Copy,
-{
-    fn sub_assign(&mut self, rhs: Self) {
-        self.rows = std::array::from_fn(|i| self.rows[i] - rhs.rows[i]);
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> Mul for Matrix<T, N, M>
-where
-    Vector<T, M>: Mul<Output = Vector<T, M>> + Copy,
-{
-    type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            rows: std::array::from_fn(|i| self.rows[i] * rhs.rows[i]),
+        impl<T: SimdElement, const N: usize, const M: usize> $trait<T> for Matrix<T, N, M>
+        where
+            Vector<T, M>: $trait<T, Output = Vector<T, M>> + Copy,
+        {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: T) -> Self {
+                Self {
+                    rows: std::array::from_fn(|i| self.rows[i].$method(rhs)),
+                }
+            }
         }
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> MulAssign for Matrix<T, N, M>
-where
-    Vector<T, M>: Mul<Output = Vector<T, M>> + Copy,
-{
-    fn mul_assign(&mut self, rhs: Self) {
-        self.rows = std::array::from_fn(|i| self.rows[i] * rhs.rows[i]);
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> Div for Matrix<T, N, M>
-where
-    Vector<T, M>: Div<Output = Vector<T, M>> + Copy,
-{
-    type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        Self {
-            rows: std::array::from_fn(|i| self.rows[i] / rhs.rows[i]),
+        impl<T: SimdElement, const N: usize, const M: usize> $assign_trait<T> for Matrix<T, N, M>
+        where
+            Vector<T, M>: $assign_trait<T> + Copy,
+        {
+            #[inline]
+            fn $assign_method(&mut self, rhs: T) {
+                for i in 0..N {
+                    self.rows[i].$assign_method(rhs);
+                }
+            }
         }
-    }
-}
-impl<T: SimdElement, const N: usize, const M: usize> DivAssign for Matrix<T, N, M>
-where
-    Vector<T, M>: Div<Output = Vector<T, M>> + Copy,
-{
-    fn div_assign(&mut self, rhs: Self) {
-        self.rows = std::array::from_fn(|i| self.rows[i] / rhs.rows[i]);
-    }
+    };
 }
 
-impl<T: SimdElement, const N: usize, const M: usize> Mul<T> for Matrix<T, N, M>
-where
-    Vector<T, M>: Mul<T, Output = Vector<T, M>> + Copy,
-{
-    type Output = Self;
-    fn mul(self, rhs: T) -> Self::Output {
-        Self {
-            rows: std::array::from_fn(|i| self.rows[i] * rhs),
-        }
-    }
-}
+impl_matrix_arithmetic!(Mul, mul, MulAssign, mul_assign);
+impl_matrix_arithmetic!(Div, div, DivAssign, div_assign);
+impl_matrix_arithmetic!(Add, add, AddAssign, add_assign);
+impl_matrix_arithmetic!(Sub, sub, SubAssign, sub_assign);
+
 impl<T: SimdElement, const N: usize, const M: usize> Mul<Vector<T, M>> for Matrix<T, N, M>
 where
     T: std::iter::Sum + Default + Scalar,
@@ -113,6 +79,25 @@ where
         let mut data = [T::ZERO; N];
         for i in 0..N {
             data[i] = self.rows[i] | vec;
+        }
+        Vector::from_slice(&data)
+    }
+}
+impl<T: Scalar, const N: usize, const M: usize> Mul<Matrix<T, N, M>> for Vector<T, N>
+where
+    T: SimdElement + std::iter::Sum + Default + Scalar,
+    Vector<T, N>: BitOr<Output = T> + Copy,
+    Vector<T, M>: From<[T; M]>,
+{
+    type Output = Vector<T, M>;
+    fn mul(self, rhs: Matrix<T, N, M>) -> Self::Output {
+        let mut data = [T::ZERO; M];
+        for col in 0..M {
+            let mut column_vec = [T::ZERO; N];
+            for row in 0..N {
+                column_vec[row] = rhs.rows[row].inner[col];
+            }
+            data[col] = self | Vector::from_slice(&column_vec);
         }
         Vector::from_slice(&data)
     }
@@ -374,5 +359,30 @@ where
             sum = sum + self.rows[i].inner[i];
         }
         sum
+    }
+}
+impl<const N: usize, const M: usize> Matrix<f32, N, M> {
+    pub fn round(self) -> Self {
+        Self {
+            rows: self.rows.map(|r| r.round()),
+        }
+    }
+    pub fn round_to_scale(self, factor: f32) -> Self {
+        Self {
+            rows: self.rows.map(|r| r.round_to_scale(factor)),
+        }
+    }
+}
+impl<const N: usize, const M: usize> std::fmt::Display for Matrix<f32, N, M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let display_mat = self.round_to_scale(10000.0);
+        for row in display_mat.rows {
+            write!(f, "[")?;
+            for i in 0..M {
+                write!(f, "{:>8.4} ", row.inner[i])?;
+            }
+            writeln!(f, "]")?;
+        }
+        Ok(())
     }
 }

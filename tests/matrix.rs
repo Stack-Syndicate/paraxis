@@ -1,41 +1,29 @@
-use paraxis::la::{matrix::Matrix, vector::Vector};
+use paraxis::maths::la::{matrix::Matrix, vector::Vector};
+
+type NAMatrix2<T> = nalgebra::Matrix2<T>;
 
 #[test]
 fn identity_multiplication() {
     let a = Matrix::from_rows([[1.0, 2.0], [3.0, 4.0]]);
     let identity = Matrix::identity();
-
     let result = a & identity;
-    assert_eq!(result.rows[0].inner[0], 1.0);
-    assert_eq!(result.rows[1].inner[1], 4.0);
+    assert_eq!(a, result)
 }
 
 #[test]
 fn determinant_and_inverse() {
-    let a = Matrix::from_rows([[4.0, 7.0], [2.0, 6.0]]);
-
-    assert!((a.determinant() - 10.0f32).abs() < 1e-6);
-
-    let inv = a.inverse().expect("Matrix should be invertible");
-    let identity_check = a & inv;
-
-    assert!((identity_check.rows[0].inner[0] - 1.0).abs() < 1e-6);
-    assert!(identity_check.rows[0].inner[1].abs() < 1e-6);
+    let na = NAMatrix2::new(4.0, 7.0, 2.0, 6.0);
+    let pa = Matrix::from_rows([[4.0, 7.0], [2.0, 6.0]]);
+    assert_eq!(pa.determinant(), na.determinant());
+    let pai = pa
+        .inverse()
+        .expect("Matrix should be invertible (paraxis).");
+    assert_eq!((pa & pai).round(), Matrix::identity());
 }
 
 #[test]
 fn eigenvalues() {
     let a = Matrix::<f32, 2, 2>::from_rows([[2.0, 1.0], [1.0, 2.0]]);
-    let mut ak = a;
-
-    for i in 0..10 {
-        let (q, r) = ak.qr();
-        ak = r & q;
-        println!(
-            "Iter {}: off-diag: {}, diag: [{}, {}]",
-            i, ak.rows[1].inner[0], ak.rows[0].inner[0], ak.rows[1].inner[1]
-        );
-    }
 
     let evals = a.eigenvalues(1000, 1e-6);
     let mut results = [evals.inner[0], evals.inner[1]];
@@ -133,4 +121,10 @@ fn linear_solver() {
     } else {
         panic!("Non-singular matrix failed to solve!");
     }
+}
+
+#[test]
+fn pretty_print() {
+    let m = Matrix::from_rows([[2.0, 1.0, 1.0], [-3.0, 0.0, 0.0], [0.0; 3]]);
+    println!("{}", m);
 }

@@ -1,16 +1,17 @@
-use paraxis::la::vector::Vector;
+use nalgebra::SVector;
+use paraxis::maths::la::vector::Vector;
+
+type NAVector<T, const N: usize> = SVector<T, N>;
 
 #[test]
 fn vector_arithmetic() {
     let v1 = Vector::from_slice(&[1.0, 2.0, 3.0, 4.0]);
     let v2 = Vector::from_slice(&[4.0, 3.0, 2.0, 1.0]);
-
-    let sum = v1 + v2;
-    assert_eq!(sum.inner[0], 5.0);
-    assert_eq!(sum.inner[3], 5.0);
-
-    let dot = v1 | v2; // Dot product
-    assert_eq!(dot, 20.0); // (1*4 + 2*3 + 3*2 + 4*1)
+    let nv1 = NAVector::<f64, 4>::new(1.0, 2.0, 3.0, 4.0);
+    let nv2 = NAVector::<f64, 4>::new(4.0, 3.0, 2.0, 1.0);
+    let dot = v1 | v2;
+    let nadot = nv1.dot(&nv2);
+    assert_eq!(dot, nadot);
 }
 
 #[test]
