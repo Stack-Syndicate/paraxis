@@ -209,4 +209,26 @@ impl<const N: usize> Vector<i32, N> {
         }
         index
     }
+    pub fn for_each_in_range<F>(min: Vector<i32, N>, max: Vector<i32, N>, mut f: F)
+    where
+        F: FnMut(Vector<i32, N>),
+    {
+        let mut current = min;
+        loop {
+            f(current);
+            let mut axis = 0;
+            while axis < N {
+                current.inner[axis] += 1;
+                if current.inner[axis] < max.inner[axis] {
+                    break;
+                } else {
+                    current.inner[axis] = min.inner[axis];
+                    axis += 1;
+                }
+            }
+            if axis == N {
+                break;
+            }
+        }
+    }
 }
