@@ -8,7 +8,7 @@ use dashmap::{
 
 use crate::maths::la::vector::Vector;
 
-pub struct GridMap<T: Eq + Hash, const N: usize> {
+pub struct GridMap<T: Eq, const N: usize> {
     inner: DashMap<Vector<i32, N>, T>,
 }
 impl<'a, T: Eq + Hash, const N: usize> GridMap<T, N> {
