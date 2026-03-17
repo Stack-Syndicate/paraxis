@@ -18,7 +18,6 @@ fn vector_arithmetic() {
 fn vector_geometry() {
     let v = Vector::from_slice(&[3.0, 4.0, 0.0, 0.0]);
     assert_eq!(v.length(), 5.0);
-
     let unit = v.normalize();
     assert_eq!(unit.length(), 1.0);
     assert_eq!(unit.inner[0], 0.6);

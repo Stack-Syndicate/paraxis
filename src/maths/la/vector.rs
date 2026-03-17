@@ -1,7 +1,7 @@
 use crate::maths::la::Scalar;
 use std::{
     ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
-    simd::{SimdElement, prelude::*},
+    simd::{prelude::*, SimdElement},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -104,7 +104,11 @@ where
     }
     pub fn normalize(self) -> Self {
         let len = self.length();
-        if len != T::ZERO { self / len } else { self }
+        if len != T::ZERO {
+            self / len
+        } else {
+            self
+        }
     }
     pub fn distance(self, other: Self) -> T {
         (self - other).length()

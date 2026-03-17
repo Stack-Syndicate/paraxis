@@ -1,19 +1,18 @@
-use dashmap::{
-    DashMap, Entry,
-    iter::{Iter, IterMut},
-    mapref::one::{Ref, RefMut},
+use std::collections::{
+    HashMap,
+    hash_map::{Entry, Iter, IterMut},
 };
 
 use crate::maths::la::vector::Vector;
 
 #[derive(Debug, Clone)]
 pub struct GridMap<T: Eq, const N: usize> {
-    inner: DashMap<Vector<i32, N>, T>,
+    inner: HashMap<Vector<i32, N>, T>,
 }
 impl<'a, T: Eq, const N: usize> GridMap<T, N> {
     pub fn new() -> Self {
         Self {
-            inner: DashMap::new(),
+            inner: HashMap::new(),
         }
     }
     pub fn entry(&mut self, position: Vector<i32, N>) -> Entry<'_, Vector<i32, N>, T> {
@@ -25,16 +24,13 @@ impl<'a, T: Eq, const N: usize> GridMap<T, N> {
     pub fn remove(&mut self, position: Vector<i32, N>) {
         self.inner.remove(&position);
     }
-    pub fn get(&self, position: &Vector<i32, N>) -> Option<Ref<'_, Vector<i32, N>, T>> {
+    pub fn get(&self, position: &Vector<i32, N>) -> Option<&T> {
         self.inner.get(position)
     }
-    pub fn get_mut(&mut self, position: &Vector<i32, N>) -> Option<RefMut<'_, Vector<i32, N>, T>> {
+    pub fn get_mut(&mut self, position: &Vector<i32, N>) -> Option<&mut T> {
         self.inner.get_mut(position)
     }
-    pub fn get_neighbors(
-        &self,
-        pos: Vector<i32, N>,
-    ) -> Vec<(Vector<i32, N>, Option<Ref<'_, Vector<i32, N>, T>>)> {
+    pub fn get_neighbors(&self, pos: Vector<i32, N>) -> Vec<(Vector<i32, N>, Option<&T>)> {
         let mut neighbours = Vec::with_capacity(2 * N);
         for axis in 0..N {
             for dir in [-1, 1] {
@@ -66,7 +62,7 @@ impl<'a, T: Eq, const N: usize> GridMap<T, N> {
         shape: Option<&[usize; N]>,
         mut f: F,
     ) where
-        F: FnMut(Vector<i32, N>, Option<Ref<'_, Vector<i32, N>, T>>),
+        F: FnMut(Vector<i32, N>, Option<&T>),
     {
         let mut offset = [0i32; N];
         let total_cells = size.pow(N as u32);
