@@ -111,11 +111,11 @@ where
             self
         }
     }
-    pub fn distance(self, other: Self) -> T {
-        (self - other).length()
+    pub fn distance(self, other: &Self) -> T {
+        (self - *other).length()
     }
-    pub fn distance_squared(self, other: Self) -> T {
-        let diff = self - other;
+    pub fn distance_squared(self, other: &Self) -> T {
+        let diff = self - *other;
         diff | diff
     }
     pub fn project(self, b: Self) -> Self {
