@@ -10,4 +10,5 @@ license = "MIT"
 repository = "https://github.com/glennw-mt/paraxis"
 
 [dev-dependencies]
+macroquad = "0.4.14"
 nalgebra = "0.34.1"

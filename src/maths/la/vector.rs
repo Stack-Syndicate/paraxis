@@ -1,5 +1,6 @@
 use crate::maths::la::Scalar;
 use std::{
+    fmt::{Display, Formatter},
     ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
     simd::{prelude::*, SimdElement},
 };
@@ -234,5 +235,17 @@ impl<const N: usize> Vector<i32, N> {
                 break;
             }
         }
+    }
+}
+impl<T: SimdElement + Display, const N: usize> Display for Vector<T, N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for i in 0..N {
+            write!(f, "{}", self.inner[i])?;
+            if i < N - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, "]")
     }
 }

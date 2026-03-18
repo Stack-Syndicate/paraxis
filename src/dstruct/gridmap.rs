@@ -1,6 +1,6 @@
 use std::collections::{
-    HashMap,
     hash_map::{Entry, Iter, IterMut},
+    HashMap,
 };
 
 use crate::maths::la::vector::Vector;
