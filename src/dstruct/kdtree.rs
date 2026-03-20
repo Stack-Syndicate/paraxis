@@ -55,11 +55,9 @@ where
     ) {
         let mut depth = depth;
         let mut id = start_id;
-
         loop {
             let node = &self.nodes[id];
             let axis = depth % N;
-
             let (side, side_id);
             if target_position[axis] < self.points[id].inner[axis] {
                 side = Side::Left;
@@ -68,14 +66,11 @@ where
                 side = Side::Right;
                 side_id = node.right.unwrap_or(usize::MAX);
             }
-
             stack.push((id, depth, side));
-
             id = side_id;
             if id == usize::MAX {
                 break;
             }
-
             depth += 1;
         }
     }
