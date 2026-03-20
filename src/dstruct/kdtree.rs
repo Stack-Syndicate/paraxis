@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use crate::maths::la::vector::Vector;
 
+#[derive(Clone)]
 enum Side {
     Left,
     Right,
@@ -14,10 +15,7 @@ struct Parent(Option<usize>);
 
 struct TraverseResult {
     stack: VecDeque<(usize, usize, Side)>,
-    shortest_distance: f32,
-    closest_node_id: usize,
 }
-
 pub struct KDNode {
     pub axis: usize,
     pub id: usize,
@@ -49,19 +47,11 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
         let mut depth = depth;
         let mut stack = VecDeque::new();
         let mut id = start_id;
-        let mut shortest_distance = f32::MAX;
-        let mut closest_node_id = usize::MAX;
-        // Traverse down to leaf
+
         loop {
             let node = &self.nodes[id];
             let axis = depth % N;
-            let distance = target_position.distance_squared(&self.points[id]);
-            // Check if current distance is shortest so far
-            if distance < shortest_distance {
-                shortest_distance = distance;
-                closest_node_id = id;
-            }
-            // Decide if we should go left or right
+
             let (side, side_id);
             if target_position.inner[axis] < self.points[id].inner[axis] {
                 side = Side::Left;
@@ -70,60 +60,119 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
                 side = Side::Right;
                 side_id = node.right.unwrap_or(usize::MAX);
             }
-            // Add current node to the stack
+
             stack.push_front((id, depth, side));
-            // Go left or right
+
             id = side_id;
             if id == usize::MAX {
                 break;
             }
-            // Book keeping
+
             depth += 1;
         }
-        return TraverseResult {
-            stack,
-            shortest_distance,
-            closest_node_id,
-        };
+
+        TraverseResult { stack }
     }
-    pub fn nearest_neighbour_id(&self, target_position: Vector<f32, N>) -> usize {
+    pub fn nearest_neighbour_id(
+        &self,
+        target_position: Vector<f32, N>,
+        k: usize,
+        max_radius: Option<f32>,
+    ) -> Vec<(usize, f32)> {
         let mut traversal = self.traverse(
             target_position,
             0,
             self.root
                 .expect("Root could not be found. Is the tree empty?"),
         );
+
+        let mut best: Vec<(usize, f32)> = Vec::new();
+
+        let insert = |best: &mut Vec<(usize, f32)>, id: usize, dist: f32| {
+            let radius2 = max_radius.map(|r| r * r);
+
+            if let Some(r2) = radius2 {
+                if dist > r2 {
+                    return;
+                }
+            }
+
+            if best.len() < k {
+                best.push((id, dist));
+            } else {
+                let (worst_idx, worst_dist) = best
+                    .iter()
+                    .enumerate()
+                    .max_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap())
+                    .unwrap();
+
+                if dist < worst_dist.1 {
+                    best[worst_idx] = (id, dist);
+                }
+            }
+
+            best.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        };
+
+        for (id, _, _) in traversal.stack.iter() {
+            let node_position = &self.points[*id];
+            let dist = target_position.distance_squared(node_position);
+            insert(&mut best, *id, dist);
+        }
+
         while let Some(item) = traversal.stack.pop_back() {
             let (id, depth, side) = item;
             let axis = depth % N;
+
             let node_position = &self.points[id];
             let distance_to_hyperplane =
                 (target_position.inner[axis] - node_position.inner[axis]).abs();
-            if distance_to_hyperplane.powi(2) >= traversal.shortest_distance {
+
+            let worst = best.last().map(|(_, d)| *d).unwrap_or(f32::MAX);
+
+            let radius_limit = max_radius.map(|r| r * r).unwrap_or(f32::MAX);
+
+            let prune_threshold = worst.min(radius_limit);
+
+            if distance_to_hyperplane.powi(2) >= prune_threshold {
                 continue;
             }
+
             let node = &self.nodes[id];
             let other_child_id = match side {
                 Side::Left => node.right,
                 Side::Right => node.left,
                 _ => unreachable!(),
             };
+
             if let Some(other_id) = other_child_id {
                 let other_traversal = self.traverse(target_position, depth + 1, other_id);
-                // Merge results
+
                 traversal.stack = other_traversal
                     .stack
+                    .clone()
                     .into_iter()
                     .chain(traversal.stack)
                     .collect();
-                // Update closest point if a nearer one was found
-                if other_traversal.shortest_distance < traversal.shortest_distance {
-                    traversal.shortest_distance = other_traversal.shortest_distance;
-                    traversal.closest_node_id = other_traversal.closest_node_id;
-                }
+
+                other_traversal.stack.iter().for_each(|(nid, d, _)| {
+                    let node_position = &self.points[nid.clone()];
+                    let dist = target_position.distance_squared(node_position);
+                    insert(&mut best, *nid, dist);
+                });
             }
         }
-        traversal.closest_node_id
+        best
+    }
+    pub fn nearest_neighbour(
+        &self,
+        target_position: Vector<f32, N>,
+        k: usize,
+    ) -> Vec<(Vector<f32, N>, &T)> {
+        let ids = self.nearest_neighbour_id(target_position, k, None);
+        ids.iter()
+            .map(|id| (self.points[id.0], &self.data[id.0]))
+            .collect()
     }
     pub fn build(&mut self, data: Vec<(Vector<f32, N>, T)>) {
         let mut data = data.clone();
@@ -222,7 +271,6 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_kdtree_invariants() {
         let points = vec![
