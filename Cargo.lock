@@ -408,6 +408,7 @@ version = "0.9.0"
 dependencies = [
  "macroquad",
  "nalgebra",
+ "num-traits",
 ]
 
 [[package]]

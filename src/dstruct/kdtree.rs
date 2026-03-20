@@ -1,4 +1,10 @@
-use std::collections::VecDeque;
+use std::{
+    fmt::Debug,
+    ops::{Mul, Sub},
+    simd::{num::SimdFloat, Simd, SimdElement},
+};
+
+use num_traits::{float::TotalOrder, real::Real};
 
 use crate::maths::la::vector::Vector;
 
@@ -13,9 +19,6 @@ struct Depth(u32);
 
 struct Parent(Option<usize>);
 
-struct TraverseResult {
-    stack: VecDeque<(usize, usize, Side)>,
-}
 pub struct KDNode {
     pub axis: usize,
     pub id: usize,
@@ -23,13 +26,18 @@ pub struct KDNode {
     pub right: Option<usize>,
 }
 
-pub struct KDTree<T, const N: usize> {
-    pub points: Vec<Vector<f32, N>>,
+pub struct KDTree<P: SimdElement, T, const N: usize> {
+    pub points: Vec<Vector<P, N>>,
     pub data: Vec<T>,
     pub nodes: Vec<KDNode>,
     pub root: Option<usize>,
 }
-impl<T: Clone, const N: usize> KDTree<T, N> {
+impl<P, T, const N: usize> KDTree<P, T, N>
+where
+    Simd<P, N>: Mul<Output = Simd<P, N>> + Sub<Output = Simd<P, N>> + SimdFloat<Scalar = P>,
+    T: Default,
+    P: SimdElement + Real + TotalOrder + Debug + Default,
+{
     pub fn new_empty() -> Self {
         Self {
             points: Vec::new(),
@@ -40,12 +48,12 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
     }
     fn traverse(
         &self,
-        target_position: Vector<f32, N>,
+        target_position: Vector<P, N>,
         depth: usize,
         start_id: usize,
-    ) -> TraverseResult {
+        stack: &mut Vec<(usize, usize, Side)>,
+    ) {
         let mut depth = depth;
-        let mut stack = VecDeque::new();
         let mut id = start_id;
 
         loop {
@@ -53,7 +61,7 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
             let axis = depth % N;
 
             let (side, side_id);
-            if target_position.inner[axis] < self.points[id].inner[axis] {
+            if target_position[axis] < self.points[id].inner[axis] {
                 side = Side::Left;
                 side_id = node.left.unwrap_or(usize::MAX);
             } else {
@@ -61,7 +69,7 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
                 side_id = node.right.unwrap_or(usize::MAX);
             }
 
-            stack.push_front((id, depth, side));
+            stack.push((id, depth, side));
 
             id = side_id;
             if id == usize::MAX {
@@ -70,33 +78,30 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
 
             depth += 1;
         }
-
-        TraverseResult { stack }
     }
-    pub fn nearest_neighbour_id(
+    fn nearest_neighbour_id(
         &self,
-        target_position: Vector<f32, N>,
+        target_position: Vector<P, N>,
         k: usize,
-        max_radius: Option<f32>,
-    ) -> Vec<(usize, f32)> {
-        let mut traversal = self.traverse(
+        max_radius: Option<P>,
+    ) -> Vec<(usize, P)> {
+        let mut stack = Vec::new();
+        let mut other_stack = Vec::new();
+        self.traverse(
             target_position,
             0,
             self.root
                 .expect("Root could not be found. Is the tree empty?"),
+            &mut stack,
         );
-
-        let mut best: Vec<(usize, f32)> = Vec::new();
-
-        let insert = |best: &mut Vec<(usize, f32)>, id: usize, dist: f32| {
-            let radius2 = max_radius.map(|r| r * r);
-
-            if let Some(r2) = radius2 {
+        let mut best: Vec<(usize, P)> = Vec::new();
+        let insert = |best: &mut Vec<(usize, P)>, id: usize, dist: P| {
+            if let Some(r) = max_radius {
+                let r2 = r * r;
                 if dist > r2 {
                     return;
                 }
             }
-
             if best.len() < k {
                 best.push((id, dist));
             } else {
@@ -105,80 +110,61 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
                     .enumerate()
                     .max_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap())
                     .unwrap();
-
                 if dist < worst_dist.1 {
                     best[worst_idx] = (id, dist);
                 }
             }
-
             best.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         };
-
-        for (id, _, _) in traversal.stack.iter() {
+        for (id, _, _) in stack.iter() {
             let node_position = &self.points[*id];
             let dist = target_position.distance_squared(node_position);
             insert(&mut best, *id, dist);
         }
-
-        while let Some(item) = traversal.stack.pop_back() {
+        while let Some(item) = stack.pop() {
             let (id, depth, side) = item;
             let axis = depth % N;
-
             let node_position = &self.points[id];
-            let distance_to_hyperplane =
-                (target_position.inner[axis] - node_position.inner[axis]).abs();
-
-            let worst = best.last().map(|(_, d)| *d).unwrap_or(f32::MAX);
-
-            let radius_limit = max_radius.map(|r| r * r).unwrap_or(f32::MAX);
-
+            let distance_to_hyperplane = (target_position[axis] - node_position.inner[axis]).abs();
+            let worst = best.last().map(|(_, d)| *d).unwrap_or(P::max_value());
+            let radius_limit = max_radius.map(|r| r * r).unwrap_or(P::max_value());
             let prune_threshold = worst.min(radius_limit);
-
             if distance_to_hyperplane.powi(2) >= prune_threshold {
                 continue;
             }
-
             let node = &self.nodes[id];
             let other_child_id = match side {
                 Side::Left => node.right,
                 Side::Right => node.left,
                 _ => unreachable!(),
             };
-
             if let Some(other_id) = other_child_id {
-                let other_traversal = self.traverse(target_position, depth + 1, other_id);
-
-                traversal.stack = other_traversal
-                    .stack
-                    .clone()
-                    .into_iter()
-                    .chain(traversal.stack)
-                    .collect();
-
-                other_traversal.stack.iter().for_each(|(nid, d, _)| {
-                    let node_position = &self.points[nid.clone()];
+                other_stack.clear();
+                self.traverse(target_position, depth + 1, other_id, &mut other_stack);
+                for (nid, _, _) in &other_stack {
+                    let node_position = &self.points[*nid];
                     let dist = target_position.distance_squared(node_position);
                     insert(&mut best, *nid, dist);
-                });
+                }
+                stack.append(&mut other_stack);
             }
         }
         best
     }
     pub fn nearest_neighbour(
         &self,
-        target_position: Vector<f32, N>,
+        target_position: Vector<P, N>,
         k: usize,
-    ) -> Vec<(Vector<f32, N>, &T)> {
+    ) -> Vec<(Vector<P, N>, &T)> {
         let ids = self.nearest_neighbour_id(target_position, k, None);
         ids.iter()
             .map(|id| (self.points[id.0], &self.data[id.0]))
             .collect()
     }
-    pub fn build(&mut self, data: Vec<(Vector<f32, N>, T)>) {
-        let mut data = data.clone();
-        let mut task_queue = VecDeque::new();
-        task_queue.push_front((0..data.len(), Depth(0), Parent(None), Side::None));
-        while let Some(task) = task_queue.pop_back() {
+    pub fn build(&mut self, mut data: Vec<(Vector<P, N>, T)>) {
+        let mut task_queue = Vec::with_capacity(data.len());
+        task_queue.push((0..data.len(), Depth(0), Parent(None), Side::None));
+        while let Some(task) = task_queue.pop() {
             let (range, depth, parent, side) = task;
             if range.is_empty() {
                 continue;
@@ -186,13 +172,10 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
             let axis = depth.0 as usize % N;
             let mid_rel = range.len() / 2;
             let mid_abs = range.start + mid_rel;
-            data[range.clone()].select_nth_unstable_by(mid_rel, |a, b| {
-                a.0.inner[axis]
-                    .partial_cmp(&b.0.inner[axis])
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            data[range.clone()]
+                .select_nth_unstable_by(mid_rel, |a, b| a.0[axis].total_cmp(&b.0[axis]));
             let node_id = self.nodes.len();
-            let (mid_point, mid_element) = &data[mid_abs];
+            let (mid_point, _) = &data[mid_abs];
             self.nodes.push(KDNode {
                 axis,
                 id: node_id,
@@ -208,20 +191,21 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
             } else {
                 self.root = Some(node_id)
             }
-            task_queue.push_front((
+            task_queue.push((
                 range.start..mid_abs,
                 Depth(depth.0 + 1),
                 Parent(Some(node_id)),
                 Side::Left,
             ));
-            task_queue.push_front((
+            task_queue.push((
                 (mid_abs + 1)..range.end,
                 Depth(depth.0 + 1),
                 Parent(Some(node_id)),
                 Side::Right,
             ));
             self.points.push(*mid_point);
-            self.data.push(mid_element.clone());
+            let (_, mid_element) = std::mem::take(&mut data[mid_abs]);
+            self.data.push(mid_element);
         }
     }
     pub fn is_valid(&self, node_idx: Option<usize>, depth: usize) -> bool {
@@ -231,10 +215,10 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
         };
         let node = &self.nodes[idx];
         let axis = depth % N;
-        let parent_val = self.points[node.id].inner[axis];
+        let parent_val = self.points[node.id][axis];
         if let Some(left_idx) = node.left {
             let left_point = self.points[self.nodes[left_idx].id];
-            if left_point.inner[axis] > parent_val {
+            if left_point[axis] > parent_val {
                 return false;
             }
             if !self.is_valid(Some(left_idx), depth + 1) {
@@ -243,7 +227,7 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
         }
         if let Some(right_idx) = node.right {
             let right_point = self.points[self.nodes[right_idx].id];
-            if right_point.inner[axis] < parent_val {
+            if right_point[axis] < parent_val {
                 return false;
             }
             if !self.is_valid(Some(right_idx), depth + 1) {
@@ -268,6 +252,7 @@ impl<T: Clone, const N: usize> KDTree<T, N> {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

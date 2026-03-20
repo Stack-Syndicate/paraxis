@@ -1,8 +1,11 @@
-use crate::maths::la::{Scalar, vector::Vector};
+use num_traits::{real::Real, Num, NumOps};
+
+use crate::maths::la::vector::Vector;
+
 use std::{
     iter::Sum,
     ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
-    simd::{SimdElement, prelude::*},
+    simd::{prelude::*, SimdElement},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -70,30 +73,30 @@ impl_matrix_arithmetic!(Sub, sub, SubAssign, sub_assign);
 
 impl<T: SimdElement, const N: usize, const M: usize> Mul<Vector<T, M>> for Matrix<T, N, M>
 where
-    T: std::iter::Sum + Default + Scalar,
+    T: std::iter::Sum + Default + Num,
     Vector<T, M>: BitOr<Output = T> + Copy,
     Vector<T, N>: From<[T; N]>,
 {
     type Output = Vector<T, N>;
     fn mul(self, vec: Vector<T, M>) -> Self::Output {
-        let mut data = [T::ZERO; N];
+        let mut data = [T::zero(); N];
         for i in 0..N {
             data[i] = self.rows[i] | vec;
         }
         Vector::from_slice(&data)
     }
 }
-impl<T: Scalar, const N: usize, const M: usize> Mul<Matrix<T, N, M>> for Vector<T, N>
+impl<T: Num, const N: usize, const M: usize> Mul<Matrix<T, N, M>> for Vector<T, N>
 where
-    T: SimdElement + std::iter::Sum + Default + Scalar,
+    T: SimdElement + std::iter::Sum + Default + Num,
     Vector<T, N>: BitOr<Output = T> + Copy,
     Vector<T, M>: From<[T; M]>,
 {
     type Output = Vector<T, M>;
     fn mul(self, rhs: Matrix<T, N, M>) -> Self::Output {
-        let mut data = [T::ZERO; M];
+        let mut data = [T::zero(); M];
         for col in 0..M {
-            let mut column_vec = [T::ZERO; N];
+            let mut column_vec = [T::zero(); N];
             for row in 0..N {
                 column_vec[row] = rhs.rows[row].inner[col];
             }
@@ -102,9 +105,9 @@ where
         Vector::from_slice(&data)
     }
 }
-impl<T: Scalar, const N: usize> Matrix<T, N, N>
+impl<T: Num, const N: usize> Matrix<T, N, N>
 where
-    T: SimdElement + Default + Scalar,
+    T: SimdElement + Default + Num,
 {
     pub fn identity() -> Self {
         Self {
@@ -112,9 +115,9 @@ where
         }
     }
 }
-impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Matrix<T, N, M> {
+impl<T: SimdElement + Default + Num, const N: usize, const M: usize> Matrix<T, N, M> {
     pub fn transpose(self) -> Matrix<T, M, N> {
-        let mut result_data = [[T::ZERO; N]; M];
+        let mut result_data = [[T::zero(); N]; M];
         for r in 0..N {
             for c in 0..M {
                 result_data[c][r] = self.rows[r].inner[c];
@@ -125,10 +128,10 @@ impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Matrix<T
         }
     }
 }
-impl<T: Scalar, const N: usize, const M: usize, const P: usize> BitAnd<Matrix<T, M, P>>
+impl<T: Num, const N: usize, const M: usize, const P: usize> BitAnd<Matrix<T, M, P>>
     for Matrix<T, N, M>
 where
-    T: SimdElement + std::iter::Sum + Default + Scalar,
+    T: SimdElement + std::iter::Sum + Default + Num,
     Vector<T, M>: BitOr<Output = T> + Copy,
 {
     type Output = Matrix<T, N, P>;
@@ -136,7 +139,7 @@ where
     fn bitand(self, rhs: Matrix<T, M, P>) -> Self::Output {
         let rhs_t = rhs.transpose();
         let new_rows = std::array::from_fn(|i| {
-            let mut row_values = [T::ZERO; P];
+            let mut row_values = [T::zero(); P];
             for j in 0..P {
                 row_values[j] = self.rows[i] | rhs_t.rows[j];
             }
@@ -146,7 +149,7 @@ where
         Matrix { rows: new_rows }
     }
 }
-impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Matrix<T, N, M> {
+impl<T: SimdElement + Default + Num, const N: usize, const M: usize> Matrix<T, N, M> {
     pub fn from_rows(data: [[T; M]; N]) -> Self {
         Self {
             rows: std::array::from_fn(|i| Vector::from_slice(&data[i])),
@@ -156,7 +159,7 @@ impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Matrix<T
     where
         [(); M]: Sized,
     {
-        let mut mat = [[T::ZERO; M]; N];
+        let mut mat = [[T::zero(); M]; N];
         for c in 0..M {
             for r in 0..N {
                 mat[r][c] = data[c][r];
@@ -165,20 +168,18 @@ impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Matrix<T
         Self::from_rows(mat)
     }
 }
-impl<T: SimdElement + Default + Scalar, const N: usize, const M: usize> Default
-    for Matrix<T, N, M>
-{
+impl<T: SimdElement + Default + Num, const N: usize, const M: usize> Default for Matrix<T, N, M> {
     fn default() -> Self {
         Self {
             rows: [Vector {
-                inner: Simd::splat(T::ZERO),
+                inner: Simd::splat(T::zero()),
             }; N],
         }
     }
 }
-impl<T: Scalar, const N: usize> Matrix<T, N, N>
+impl<T: Num, const N: usize> Matrix<T, N, N>
 where
-    T: SimdElement + Default + Scalar + Div<Output = T>,
+    T: SimdElement + Default + Num + Div<Output = T>,
     Vector<T, N>: Copy + SubAssign + Mul<T, Output = Vector<T, N>>,
 {
     pub fn lu(&self) -> (Self, Self) {
@@ -195,9 +196,9 @@ where
         (l, u)
     }
 }
-impl<T: Scalar, const N: usize, const M: usize> Matrix<T, N, M>
+impl<T: Num + NumOps + Real, const N: usize, const M: usize> Matrix<T, N, M>
 where
-    T: SimdElement + Default + PartialEq + Scalar + std::iter::Sum + Div<Output = T>,
+    T: SimdElement + Default + PartialEq + Sum,
     Vector<T, N>: Copy
         + SubAssign
         + BitOr<Output = T>
@@ -227,8 +228,8 @@ where
             let norm = v.length();
             r.rows[i].inner[i] = norm;
 
-            if norm != T::ZERO {
-                q_cols[i] = v * (T::ONE / norm);
+            if norm != T::zero() {
+                q_cols[i] = v * (T::one() / norm);
             } else {
                 q_cols[i] = v;
             }
@@ -237,17 +238,9 @@ where
         (Matrix { rows: q_cols }.transpose(), r)
     }
 }
-impl<T: Scalar, const N: usize> Matrix<T, N, N>
+impl<T: Num + NumOps + Real, const N: usize> Matrix<T, N, N>
 where
-    T: SimdElement
-        + Default
-        + PartialEq
-        + Scalar
-        + Sum
-        + Mul<T, Output = T>
-        + PartialOrd
-        + Into<f32>,
-    T: Div<Output = T>,
+    T: SimdElement + Default + Sum + PartialOrd + Into<f32>,
     Vector<T, N>: Div<T, Output = Vector<T, N>>
         + Mul<T, Output = Vector<T, N>>
         + BitOr<Output = T>
@@ -270,7 +263,7 @@ where
                 break;
             }
         }
-        let mut evals = [T::ZERO; N];
+        let mut evals = [T::zero(); N];
         for i in 0..N {
             evals[i] = ak.rows[i].inner[i];
         }
@@ -288,52 +281,45 @@ where
         true
     }
 }
-impl<T: Scalar, const N: usize> Matrix<T, N, N>
+impl<T: Num + NumOps, const N: usize> Matrix<T, N, N>
 where
-    T: SimdElement + Default + Scalar + Div<Output = T> + Mul<Output = T>,
+    T: SimdElement + Default + Num,
     Vector<T, N>: Copy + SubAssign + Mul<T, Output = Vector<T, N>>,
 {
     pub fn determinant(&self) -> T {
         let (_, u) = self.lu();
-        let mut det = T::ONE;
+        let mut det = T::one();
         for i in 0..N {
             det = det * u.rows[i].inner[i];
         }
         det
     }
 }
-impl<T: Scalar, const N: usize> Matrix<T, N, N>
+impl<T, const N: usize> Matrix<T, N, N>
 where
-    T: SimdElement
-        + Default
-        + Scalar
-        + Sub<Output = T>
-        + Mul<Output = T>
-        + Div<Output = T>
-        + Add<Output = T>
-        + PartialEq,
+    T: SimdElement + Default + Num + NumOps + PartialEq,
     Vector<T, N>: Copy + SubAssign + Mul<T, Output = Vector<T, N>> + BitOr<Output = T>,
 {
     pub fn solve(&self, b: Vector<T, N>) -> Option<Vector<T, N>> {
         let (l, u) = self.lu();
-        let mut y = [T::ZERO; N];
+        let mut y = [T::zero(); N];
         for i in 0..N {
-            let mut sum = T::ZERO;
+            let mut sum = T::zero();
             for j in 0..i {
                 sum = sum + l.rows[i].inner[j] * y[j];
             }
 
             y[i] = b.inner[i] - sum;
         }
-        let mut x = [T::ZERO; N];
+        let mut x = [T::zero(); N];
         for i in (0..N).rev() {
-            let mut sum = T::ZERO;
+            let mut sum = T::zero();
             for j in (i + 1)..N {
                 sum = sum + u.rows[i].inner[j] * x[j];
             }
 
             let diag = u.rows[i].inner[i];
-            if diag == T::ZERO {
+            if diag == T::zero() {
                 return None;
             }
 
@@ -342,7 +328,7 @@ where
         Some(Vector::from_slice(&x))
     }
     pub fn inverse(&self) -> Option<Self> {
-        let mut inv_cols = [[T::ZERO; N]; N];
+        let mut inv_cols = [[T::zero(); N]; N];
         let identity = Self::identity();
         for i in 0..N {
             let col = self.solve(identity.rows[i])?;
@@ -354,7 +340,7 @@ where
         Some(Self::from_cols(inv_cols))
     }
     pub fn trace(&self) -> T {
-        let mut sum = T::ZERO;
+        let mut sum = T::zero();
         for i in 0..N {
             sum = sum + self.rows[i].inner[i];
         }
