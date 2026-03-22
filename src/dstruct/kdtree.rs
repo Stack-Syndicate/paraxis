@@ -1,12 +1,10 @@
+use crate::maths::la::vector::Vector;
+use num_traits::{float::TotalOrder, real::Real};
 use std::{
     fmt::Debug,
     ops::{Mul, Sub},
     simd::{num::SimdFloat, Simd, SimdElement},
 };
-
-use num_traits::{float::TotalOrder, real::Real};
-
-use crate::maths::la::vector::Vector;
 
 #[derive(Clone)]
 enum Side {
