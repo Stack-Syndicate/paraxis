@@ -11,3 +11,12 @@ pub fn unflatten_index<const N: usize>(mut index: usize, shape: &[usize; N]) -> 
     }
     Vector::from(coords)
 }
+pub fn flatten_index<const N: usize>(pos: Vector<i32, N>, shape: &[usize; N]) -> usize {
+    let mut index = 0;
+    let mut stride = 1;
+    for i in (0..N).rev() {
+        index += pos.inner[i] as usize * stride;
+        stride *= shape[i];
+    }
+    index
+}
