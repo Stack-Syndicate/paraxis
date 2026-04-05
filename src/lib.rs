@@ -1,3 +1,2 @@
-#![feature(portable_simd)]
-pub mod dstruct;
+pub mod dsa;
 pub mod maths;
