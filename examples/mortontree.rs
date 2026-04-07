@@ -16,7 +16,6 @@ async fn main() {
         let tree = MortonTree::new(
             raw_points.clone(),
             Vector::new([0.0, 0.0]),
-            Vector::new([width, height]),
             bucket_scale,
             64,
         );

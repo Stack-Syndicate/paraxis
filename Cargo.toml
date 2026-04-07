@@ -13,12 +13,9 @@ repository = "https://github.com/glennw-mt/paraxis"
 macroquad = "0.4.14"
 nalgebra = "0.34.1"
 rayon = "1.11.0"
+rand = { version = "0.10.0", features = ["thread_rng"] }
 
 [dependencies]
 bitvec = "1.0.1"
-itertools = "0.14.0"
-macroquad = "0.4.14"
 num-traits = "0.2.19"
-rand = { version = "0.10.0", features = ["thread_rng"] }
-smallvec = "1.15.1"
 

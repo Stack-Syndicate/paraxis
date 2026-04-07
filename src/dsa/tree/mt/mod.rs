@@ -6,7 +6,6 @@ use crate::maths::vec::Vector;
 pub struct MortonTree<T: Num, P, const N: usize> {
     pub data: Vec<(BitVec<u8, Msb0>, Vector<T, N>, P)>,
     min: Vector<T, N>,
-    max: Vector<T, N>,
     scale: T,
     bits_per_axis: usize,
 }
@@ -14,7 +13,6 @@ impl<T: Num + ToPrimitive + PartialOrd + Copy, P, const N: usize> MortonTree<T, 
     pub fn new(
         raw_data: Vec<(Vector<T, N>, P)>,
         min: Vector<T, N>,
-        max: Vector<T, N>,
         scale: T,
         bits_per_axis: usize,
     ) -> Self {
@@ -30,7 +28,6 @@ impl<T: Num + ToPrimitive + PartialOrd + Copy, P, const N: usize> MortonTree<T, 
         Self {
             data: morton_data,
             min,
-            max,
             scale,
             bits_per_axis,
         }
