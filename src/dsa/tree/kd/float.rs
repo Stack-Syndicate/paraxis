@@ -1,7 +1,7 @@
-use crate::{dsa::tree::skd::SKDTree, maths::vec::Vector};
+use crate::{dsa::tree::kd::KDTree, maths::vec::Vector};
 use num_traits::Float;
 
-impl<T: Float + PartialOrd, P: Clone + Copy, const N: usize> SKDTree<T, P, N> {
+impl<T: Float + PartialOrd, P: Clone + Copy, const N: usize> KDTree<T, P, N> {
     pub fn nearest_neighbour_euclidean(&self, point: &Vector<T, N>) -> (Vector<T, N>, P) {
         let mut stack = Vec::with_capacity(64);
         stack.push((0, self.data.len(), 0));

@@ -3,22 +3,18 @@ use num_traits::Num;
 mod float;
 mod signed;
 
-pub struct SKDTree<T: Num, P, const N: usize> {
+pub struct KDTree<T: Num, P, const N: usize> {
     pub data: Vec<(Vector<T, N>, P)>,
-    pub split_count: usize,
 }
-impl<T: Num + PartialOrd + Clone, P: Clone, const N: usize> SKDTree<T, P, N> {
-    pub fn new(raw_data: &[(Vector<T, N>, P)], split_count: usize) -> Self {
+impl<T: Num + PartialOrd + Clone, P: Clone, const N: usize> KDTree<T, P, N> {
+    pub fn new(raw_data: &[(Vector<T, N>, P)]) -> Self {
         let mut owned_data = (&raw_data).to_vec();
         if !owned_data.is_empty() {
-            Self::build_iterative(&mut owned_data, split_count);
+            Self::build_iterative(&mut owned_data);
         }
-        Self {
-            data: owned_data,
-            split_count,
-        }
+        Self { data: owned_data }
     }
-    fn build_iterative(data: &mut [(Vector<T, N>, P)], _split_count: usize) {
+    fn build_iterative(data: &mut [(Vector<T, N>, P)]) {
         let mut stack = Vec::with_capacity(64);
         if !data.is_empty() {
             stack.push((0, data.len(), 0));

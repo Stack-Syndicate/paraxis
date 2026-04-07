@@ -1,6 +1,6 @@
 use ::rand::random_range;
 use macroquad::prelude::*;
-use paraxis::{dsa::tree::skd::SKDTree, maths::vec::Vector};
+use paraxis::{dsa::tree::kd::KDTree, maths::vec::Vector};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSliceMut;
@@ -8,7 +8,6 @@ use rayon::slice::ParallelSliceMut;
 #[macroquad::main("KDTree Visualizer")]
 async fn main() {
     let mut raw_points: Vec<(Vector<f32, 2>, ())> = Vec::new();
-    // let mut tree = SKDTree::new(&raw_points, 1); // split_count=1
     loop {
         let width = screen_width() as u32;
         let height = screen_height() as u32;
@@ -22,7 +21,7 @@ async fn main() {
             random_range(0..height) as f32,
         );
         raw_points.push((Vector { inner: [x, y] }, ()));
-        let tree = SKDTree::new(&raw_points, 1);
+        let tree = KDTree::new(&raw_points);
         if !tree.data.is_empty() {
             buffer
                 .par_chunks_mut(32)
