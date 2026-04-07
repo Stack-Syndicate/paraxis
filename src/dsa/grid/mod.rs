@@ -19,4 +19,10 @@ impl<D: Num + Eq + Hash + Clone, T: Clone, const N: usize> Grid<D, T, N> {
         let data = vec.into_iter().collect();
         Self { data }
     }
+    pub fn insert(&mut self, position: Vector<D, N>, data: T) {
+        self.data.insert(position, data);
+    }
+    pub fn remove(&mut self, position: &Vector<D, N>) {
+        self.data.remove(position);
+    }
 }

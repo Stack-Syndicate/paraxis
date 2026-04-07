@@ -1,85 +1,69 @@
+use ::rand::random_range;
 use macroquad::prelude::*;
-use paraxis::{dsa::tree::kd::KDTree, maths::vec::Vector};
+use paraxis::{dsa::tree::skd::SKDTree, maths::vec::Vector};
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::ParallelIterator;
+use rayon::slice::ParallelSliceMut;
 
-fn draw_tree_bounds(
-    data: &[(Vector<f32, 2>, ())],
-    depth: usize,
-    min_x: f32,
-    max_x: f32,
-    min_y: f32,
-    max_y: f32,
-) {
-    if data.is_empty() {
-        return;
-    }
-    let mid_idx = data.len() / 2;
-    let (point, _) = &data[mid_idx];
-    let axis = depth % 2;
-    if axis == 0 {
-        draw_line(point.inner[0], min_y, point.inner[0], max_y, 1.0, BLUE);
-        draw_tree_bounds(
-            &data[..mid_idx],
-            depth + 1,
-            min_x,
-            point.inner[0],
-            min_y,
-            max_y,
-        );
-        draw_tree_bounds(
-            &data[mid_idx + 1..],
-            depth + 1,
-            point.inner[0],
-            max_x,
-            min_y,
-            max_y,
-        );
-    } else {
-        draw_line(min_x, point.inner[1], max_x, point.inner[1], 1.0, RED);
-        draw_tree_bounds(
-            &data[..mid_idx],
-            depth + 1,
-            min_x,
-            max_x,
-            min_y,
-            point.inner[1],
-        );
-        draw_tree_bounds(
-            &data[mid_idx + 1..],
-            depth + 1,
-            min_x,
-            max_x,
-            point.inner[1],
-            max_y,
-        );
-    }
-}
 #[macroquad::main("KDTree Visualizer")]
 async fn main() {
     let mut raw_points: Vec<(Vector<f32, 2>, ())> = Vec::new();
-    let mut tree = KDTree::new(&raw_points);
+    // let mut tree = SKDTree::new(&raw_points, 1); // split_count=1
     loop {
+        let width = screen_width() as u32;
+        let height = screen_height() as u32;
+        let step = 32;
+        let grid_w = width / step;
+        let grid_h = height / step;
+        let mut buffer = vec![(0u32, 0u32, 0.0f32); (grid_w * grid_h) as usize];
         clear_background(BLACK);
-        if is_mouse_button_down(MouseButton::Left) {
-            let (x, y) = mouse_position();
-            raw_points.push((Vector { inner: [x, y] }, ()));
-            tree = KDTree::new(&raw_points);
-        }
-        draw_tree_bounds(&tree.data, 0, 0.0, screen_width(), 0.0, screen_height());
-        for (p, _) in &tree.data {
-            draw_circle(p.inner[0], p.inner[1], 3.0, WHITE);
-        }
-        draw_text("Click to add points", 20.0, 30.0, 20.0, WHITE);
-        draw_text(
-            &format!("Total Points: {}", tree.data.len()),
-            20.0,
-            50.0,
-            20.0,
-            GREEN,
+        let (x, y) = (
+            random_range(0..width) as f32,
+            random_range(0..height) as f32,
         );
+        raw_points.push((Vector { inner: [x, y] }, ()));
+        let tree = SKDTree::new(&raw_points, 1);
+        if !tree.data.is_empty() {
+            buffer
+                .par_chunks_mut(32)
+                .enumerate()
+                .for_each(|(chunk_idx, chunk)| {
+                    let start = chunk_idx * 32;
+                    for (i, elem) in chunk.iter_mut().enumerate() {
+                        let idx = start + i;
+                        if idx >= (grid_w * grid_h) as usize {
+                            break;
+                        }
+                        let x = (idx as u32 % grid_w) * step;
+                        let y = (idx as u32 / grid_w) * step;
+                        let pos = Vector::new([x as f32, y as f32]);
+                        let dist = tree.nearest_neighbour_euclidean(&pos).0.dist_euclidean(pos);
+                        let alpha = dist / width as f32 * 2.0;
+                        *elem = (x, y, alpha);
+                    }
+                });
+            for &(x, y, a) in &buffer {
+                draw_rectangle(
+                    x as f32,
+                    y as f32,
+                    step as f32,
+                    step as f32,
+                    Color {
+                        r: 1.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a,
+                    },
+                );
+            }
+        }
+        for (p, _) in &tree.data {
+            draw_circle(p.inner[0], p.inner[1], 1.0, WHITE);
+        }
         let mouse_position = mouse_position();
         if !tree.data.is_empty() {
             let nearest_neighbour = tree
-                .nearest_neighbour_euclidean(Vector::new([mouse_position.0, mouse_position.1]))
+                .nearest_neighbour_euclidean(&Vector::new([mouse_position.0, mouse_position.1]))
                 .0;
             draw_line(
                 mouse_position.0,
@@ -90,7 +74,15 @@ async fn main() {
                 GREEN,
             );
         }
+        draw_text("Click to add points", 20.0, 30.0, 20.0, WHITE);
+        draw_text(
+            &format!("Total Points: {}", tree.data.len()),
+            20.0,
+            50.0,
+            20.0,
+            GREEN,
+        );
         draw_fps();
-        next_frame().await
+        next_frame().await;
     }
 }

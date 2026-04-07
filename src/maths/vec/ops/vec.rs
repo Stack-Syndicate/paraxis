@@ -1,12 +1,11 @@
-use std::ops::{Add, AddAssign, BitAnd, BitOr, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 use num_traits::Num;
 
 use crate::maths::vec::Vector;
 
-impl<T: Num + Copy, const N: usize> BitOr for Vector<T, N> {
-    type Output = T;
-    fn bitor(self, rhs: Self) -> Self::Output {
+impl<T: Num + Copy, const N: usize> Vector<T, N> {
+    pub fn dot(self, rhs: Self) -> T {
         self.inner
             .iter()
             .zip(rhs.inner.iter())
@@ -15,9 +14,8 @@ impl<T: Num + Copy, const N: usize> BitOr for Vector<T, N> {
     }
 }
 
-impl<T: Num + Copy> BitAnd for Vector<T, 3> {
-    type Output = Self;
-    fn bitand(self, rhs: Self) -> Self::Output {
+impl<T: Num + Copy> Vector<T, 3> {
+    pub fn cross(self, rhs: Self) -> Self {
         let [sx, sy, sz] = self.inner;
         let [rx, ry, rz] = rhs.inner;
         return Self {
