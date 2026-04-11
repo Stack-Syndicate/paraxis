@@ -1,5 +1,5 @@
 use crate::{dsa::tree::mt::MortonTree, encoding::MortonCode, maths::vec::Vector};
-use num_traits::{Float, FromPrimitive, Pow};
+use num_traits::{Float, FromPrimitive};
 
 impl<T: Float + PartialOrd + FromPrimitive, P, const N: usize> MortonTree<T, P, N> {
     pub fn raycast(
@@ -58,9 +58,6 @@ impl<T: Float + PartialOrd + FromPrimitive, P, const N: usize> MortonTree<T, P, 
                     depth_offset -= 1;
                 }
             }
-        }
-        if results.is_empty() {
-            results.push((T::from(-1.0).unwrap(), &[]));
         }
         results
     }
