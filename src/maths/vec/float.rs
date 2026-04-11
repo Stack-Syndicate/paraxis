@@ -18,4 +18,8 @@ impl<T: Float, const N: usize> Vector<T, N> {
             .zip(other.inner.iter())
             .fold(T::zero(), |acc, x| acc + (*x.1 - *x.0) * (*x.1 - *x.0))
     }
+    #[inline(always)]
+    pub fn normalize(&self) -> Self {
+        return *self / (self.dot(*self).sqrt());
+    }
 }
