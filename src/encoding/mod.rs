@@ -34,9 +34,10 @@ impl<'a, T: Float, const N: usize> MortonCode<T, N> {
 impl<T: Float, const N: usize> MortonCode<T, N> {
     pub fn to_u64(&self) -> u64 {
         let mut out = 0u64;
-        for i in 0..self.bits.len() {
+        let len = self.bits.len().min(64);
+        for i in 0..len {
             if self.bits[i] {
-                out |= 1 << i;
+                out |= 1u64 << i;
             }
         }
         out
