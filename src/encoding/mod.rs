@@ -34,9 +34,13 @@ impl<'a, T: Float, const N: usize> MortonCode<T, N> {
 impl<T: Float> MortonCode<T, 3> {
     pub fn to_u64(&self) -> u64 {
         let mut out = 0u64;
-        let len = self.bits.len().min(64);
-        for i in 0..len {
-            if self.bits[i] {
+        // We want to capture the 'most detailed' bits.
+        // If the bitset is long, the detail is usually at the end.
+        let len = self.bits.len();
+        let take = len.min(64);
+        for i in 0..take {
+            // Try reading from the end of the bit array
+            if self.bits[len - 1 - i] {
                 out |= 1u64 << i;
             }
         }
