@@ -1,13 +1,14 @@
 use ::rand::random_range;
 use macroquad::prelude::*;
-use paraxis::{dsa::tree::kd::KDTree, maths::vec::Vector};
+use nalgebra::SVector;
+use paraxis::tree::kd::KDTree;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSliceMut;
 
 #[macroquad::main("KDTree Visualizer")]
 async fn main() {
-    let mut raw_points: Vec<(Vector<f32, 2>, ())> = Vec::new();
+    let mut raw_points: Vec<(SVector<f32, 2>, ())> = Vec::new();
     loop {
         let width = screen_width() as u32;
         let height = screen_height() as u32;
@@ -20,8 +21,8 @@ async fn main() {
             random_range(0..width) as f32,
             random_range(0..height) as f32,
         );
-        raw_points.push((Vector { inner: [x, y] }, ()));
-        let tree = KDTree::new(&raw_points);
+        raw_points.push((SVector::from([x, y]), ()));
+        let tree = KDTree::new(raw_points.clone());
         if !tree.data.is_empty() {
             buffer
                 .par_chunks_mut(32)
@@ -35,8 +36,8 @@ async fn main() {
                         }
                         let x = (idx as u32 % grid_w) * step;
                         let y = (idx as u32 / grid_w) * step;
-                        let pos = Vector::new([x as f32, y as f32]);
-                        let dist = tree.nearest_neighbour_euclidean(&pos).0.dist_euclidean(pos);
+                        let pos = SVector::from([x as f32, y as f32]);
+                        let dist = tree.nearest_neighbour(pos).unwrap().0.metric_distance(&pos);
                         let alpha = dist / width as f32 * 2.0;
                         *elem = (x, y, alpha);
                     }
@@ -57,25 +58,26 @@ async fn main() {
             }
         }
         for (p, _) in &tree.data {
-            draw_circle(p.inner[0], p.inner[1], 1.0, WHITE);
+            draw_circle(p[0], p[1], 1.0, WHITE);
         }
         let mouse_position = mouse_position();
         if !tree.data.is_empty() {
             let nearest_neighbour = tree
-                .nearest_neighbour_euclidean(&Vector::new([mouse_position.0, mouse_position.1]))
+                .nearest_neighbour(SVector::from([mouse_position.0, mouse_position.1]))
+                .unwrap()
                 .0;
             draw_line(
                 mouse_position.0,
                 mouse_position.1,
-                nearest_neighbour.inner[0],
-                nearest_neighbour.inner[1],
+                nearest_neighbour[0],
+                nearest_neighbour[1],
                 3.0,
                 GREEN,
             );
         }
         draw_text("Click to add points", 20.0, 30.0, 20.0, WHITE);
         draw_text(
-            &format!("Total Points: {}", tree.data.len()),
+            format!("Total Points: {}", tree.data.len()),
             20.0,
             50.0,
             20.0,

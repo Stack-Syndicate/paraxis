@@ -1,8 +1,8 @@
 [package]
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
-description = "A simple rock-solid mathematics library."
-version = "0.9.3"
+description = "A simple to use spatial datastructure crate."
+version = "0.9.4"
 edition = "2024"
 keywords = ["linear-algebra", "maths", "numpy"]
 categories = ["mathematics"]
@@ -11,10 +11,10 @@ repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 
 [dependencies]
 bitvec = "1.0.1"
+nalgebra = "0.35.0"
 num-traits = "0.2.19"
 
 [dev-dependencies]
 macroquad = "0.4.14"
-nalgebra = "0.34.1"
 rand = { version = "0.10.0", features = ["thread_rng"] }
 rayon = "1.11.0"

@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
 use macroquad::prelude::*;
-use paraxis::dsa::tree::mt::MortonTree;
-use paraxis::maths::vec::Vector;
+use nalgebra::SVector;
+use paraxis::tree::mt::MortonTree;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 
@@ -18,8 +18,8 @@ async fn main() {
         "1111111111",
     ];
 
-    let tile_size = 32.0;
-    let mut raw_points: Vec<(Vector<f32, 2>, ())> = Vec::new();
+    let tile_size = 64.0;
+    let mut raw_points: Vec<(SVector<f32, 2>, ())> = Vec::new();
     for (row_index, row) in maze.iter().enumerate() {
         for (col_index, char) in row.chars().enumerate() {
             if char == '1' {
@@ -27,27 +27,27 @@ async fn main() {
                 let y_offset = row_index as f32 * tile_size;
                 for i in (0..=tile_size as i32).step_by(8) {
                     let offset = i as f32;
-                    raw_points.push((Vector::new([x_offset + offset, y_offset]), ()));
-                    raw_points.push((Vector::new([x_offset + offset, y_offset + tile_size]), ()));
-                    raw_points.push((Vector::new([x_offset, y_offset + offset]), ()));
-                    raw_points.push((Vector::new([x_offset + tile_size, y_offset + offset]), ()));
+                    raw_points.push((SVector::from([x_offset + offset, y_offset]), ()));
+                    raw_points.push((SVector::from([x_offset + offset, y_offset + tile_size]), ()));
+                    raw_points.push((SVector::from([x_offset, y_offset + offset]), ()));
+                    raw_points.push((SVector::from([x_offset + tile_size, y_offset + offset]), ()));
                 }
             }
         }
     }
-    let tree = MortonTree::new(raw_points.clone(), Vector::new([-10000.0, -10000.0]));
+    let tree = MortonTree::new(raw_points.clone(), SVector::from([-10000.0, -10000.0]));
     let render_target = render_target(1920, 1080);
     let raycast_depth = 3;
     let mut tree_needs_update = true;
-    let raycast_coarseness = 16;
+    let raycast_coarseness = 8;
     let mut fov = PI / 2.0;
-    let mut player_position = Vector::new([64.0, 64.0]);
+    let mut player_position = SVector::from([64.0, 64.0]);
     let mut player_angle = 0.0f32;
     let move_speed = 0.5;
     let rotation_speed = 0.01;
     loop {
-        let forward = Vector::new([player_angle.cos(), player_angle.sin()]);
-        let right = Vector::new([-player_angle.sin(), player_angle.cos()]);
+        let forward = SVector::from([player_angle.cos(), player_angle.sin()]);
+        let right = SVector::from([-player_angle.sin(), player_angle.cos()]);
         clear_background(BLACK);
         if is_key_down(KeyCode::W) {
             player_position += forward * move_speed;
@@ -82,13 +82,7 @@ async fn main() {
             });
             clear_background(BLANK);
             for (mc, _) in &tree.data {
-                draw_rectangle(
-                    mc.position.inner[0],
-                    mc.position.inner[1],
-                    8.0,
-                    8.0,
-                    DARKGRAY,
-                );
+                draw_rectangle(mc.position[0], mc.position[1], 8.0, 8.0, DARKGRAY);
             }
             set_default_camera();
             tree_needs_update = false;
@@ -100,7 +94,7 @@ async fn main() {
         let start_angle = player_angle - fov / 2.0;
         for i in 0..num_rays {
             let current_angle = start_angle + (i as f32 * angle_step);
-            ray_dirs.push(Vector::new([current_angle.cos(), current_angle.sin()]));
+            ray_dirs.push(SVector::from([current_angle.cos(), current_angle.sin()]));
         }
         let all_hit_results: Vec<_> = ray_dirs
             .par_iter()
@@ -113,7 +107,7 @@ async fn main() {
             .collect();
         let mut first_hits = Vec::new();
         for (_, hit_buckets) in all_hit_results.iter() {
-            for (i, (dist, bucket)) in hit_buckets.iter().enumerate() {
+            for (i, (dist, _bucket)) in hit_buckets.iter().enumerate() {
                 if i == 0 {
                     first_hits.push(dist);
                 }
@@ -145,25 +139,20 @@ async fn main() {
 
         draw_rectangle(0.0, 0.0, 350.0, 250.0, BLACK);
         draw_texture(&render_target.texture, 0.0, 0.0, WHITE);
-        draw_circle(
-            player_position.inner[0],
-            player_position.inner[1],
-            8.0,
-            GREEN,
-        );
+        draw_circle(player_position[0], player_position[1], 8.0, GREEN);
         draw_line(
-            player_position.inner[0],
-            player_position.inner[1],
-            player_position.inner[0] + f32::cos(player_angle + fov / 2.0) * 128.0,
-            player_position.inner[1] + f32::sin(player_angle + fov / 2.0) * 128.0,
+            player_position[0],
+            player_position[1],
+            player_position[0] + f32::cos(player_angle + fov / 2.0) * 128.0,
+            player_position[1] + f32::sin(player_angle + fov / 2.0) * 128.0,
             2.0,
             GREEN,
         );
         draw_line(
-            player_position.inner[0],
-            player_position.inner[1],
-            player_position.inner[0] + f32::cos(player_angle - fov / 2.0) * 128.0,
-            player_position.inner[1] + f32::sin(player_angle - fov / 2.0) * 128.0,
+            player_position[0],
+            player_position[1],
+            player_position[0] + f32::cos(player_angle - fov / 2.0) * 128.0,
+            player_position[1] + f32::sin(player_angle - fov / 2.0) * 128.0,
             2.0,
             GREEN,
         );
