@@ -1,3 +1,3 @@
-pub mod encoding;
-pub mod grid;
-pub mod tree;
+pub mod algorithm;
+pub mod continuous;
+pub mod discrete;
