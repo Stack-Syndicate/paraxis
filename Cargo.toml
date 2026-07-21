@@ -10,4 +10,3 @@ license = "MIT"
 repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 
 [dependencies]
-nalgebra = "0.35.0"
