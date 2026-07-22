@@ -129,16 +129,16 @@ impl<T: Clone> Grid<T, [i32; 3]> for Grid3D<T> {
     }
 }
 
-pub struct SparseGrid2D<T: Clone> {
-    data: HashMap<[i32; 2], Node<T, [i32; 2]>>,
-    size: [i32; 2],
+pub struct SparseGrid<T, const N: usize> {
+    data: HashMap<[i32; N], Node<T, [i32; N]>>,
+    size: [i32; N],
 }
-impl<T: Clone> Grid<T, [i32; 2]> for SparseGrid2D<T> {
-    fn new(size: [i32; 2]) -> impl Grid<T, [i32; 2]> {
+impl<T: Clone, const N: usize> Grid<T, [i32; N]> for SparseGrid<T, N> {
+    fn new(size: [i32; N]) -> impl Grid<T, [i32; N]> {
         let data = HashMap::new();
         Self { data, size }
     }
-    fn insert(&mut self, data: T, position: &[i32; 2]) {
+    fn insert(&mut self, data: T, position: &[i32; N]) {
         if !self.in_grid_bounds(position) {
             panic!("Insertion error: position out of range.")
         }
@@ -150,31 +150,28 @@ impl<T: Clone> Grid<T, [i32; 2]> for SparseGrid2D<T> {
             })
             .inner = Some(data)
     }
-    fn remove(&mut self, position: &[i32; 2]) -> Node<T, [i32; 2]> {
+    fn remove(&mut self, position: &[i32; N]) -> Node<T, [i32; N]> {
         if !self.in_grid_bounds(position) {
             panic!("Removal error: position out of range.")
         }
         self.data.remove(position).unwrap()
     }
-    fn get(&self, position: &[i32; 2]) -> Option<&Node<T, [i32; 2]>> {
+    fn get(&self, position: &[i32; N]) -> Option<&Node<T, [i32; N]>> {
         if !self.in_grid_bounds(position) {
             panic!("Get error: position out of range.")
         }
         self.data.get(position)
     }
-    fn get_mut(&mut self, position: &[i32; 2]) -> Option<&mut Node<T, [i32; 2]>> {
+    fn get_mut(&mut self, position: &[i32; N]) -> Option<&mut Node<T, [i32; N]>> {
         if !self.in_grid_bounds(position) {
             panic!("Get error: position out of range.")
         }
         self.data.get_mut(position)
     }
-    fn in_grid_bounds(&self, position: &[i32; 2]) -> bool {
+    fn in_grid_bounds(&self, position: &[i32; N]) -> bool {
         0 <= position[0]
             && position[0] < self.size[0]
             && 0 <= position[1]
             && position[1] < self.size[1]
     }
 }
-
-pub struct SparseGrid3D {}
-impl SparseGrid3D {}
