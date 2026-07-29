@@ -10,3 +10,4 @@ license = "MIT"
 repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 
 [dependencies]
+thiserror = "2.0.19"
