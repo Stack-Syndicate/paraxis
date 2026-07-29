@@ -1,4 +1,3 @@
-pub mod algorithm;
+pub mod algorithms;
 pub mod common;
-pub mod continuous;
-pub mod discrete;
+pub mod containers;

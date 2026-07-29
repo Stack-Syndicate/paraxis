@@ -1,1 +1,1 @@
-pub mod discrete;
+pub mod discrete_grid;

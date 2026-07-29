@@ -1,4 +1,4 @@
-use paraxis::{common::traits::Grid, discrete::grid::DenseGrid};
+use paraxis::{common::traits::Grid, containers::grid::DenseGrid};
 
 #[test]
 fn initialization() {
