@@ -37,10 +37,10 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for DenseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let node = self.data.get_mut(grid_id(self.size, *position)).unwrap();
-        match node.inner.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => {
+        let node_opt = self.data.get_mut(grid_id(self.size, *position));
+        match node_opt {
+            None => Err(ParaxisError::UnintNode),
+            Some(node) => {
                 let node_clone = node.clone();
                 node.inner = None;
                 Ok(node_clone)
@@ -51,20 +51,20 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for DenseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let node = self.data.get(grid_id(self.size, *position)).unwrap();
-        match node.inner.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(node),
+        let node_opt = self.data.get(grid_id(self.size, *position));
+        match node_opt {
+            None => Err(ParaxisError::UnintNode),
+            Some(node) => Ok(node),
         }
     }
     fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let node = self.data.get_mut(grid_id(self.size, *position)).unwrap();
-        match node.inner.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(node),
+        let node_opt = self.data.get_mut(grid_id(self.size, *position));
+        match node_opt {
+            None => Err(ParaxisError::UnintNode),
+            Some(node) => Ok(node),
         }
     }
     fn in_grid_bounds(&self, position: &[i32; N]) -> bool {
@@ -117,20 +117,20 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for SparseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let node = self.data.get(position).unwrap();
-        match node.inner.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(node),
+        let node_opt = self.data.get(position);
+        match node_opt {
+            None => Err(ParaxisError::UnintNode),
+            Some(node) => Ok(node),
         }
     }
     fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let node = self.data.get_mut(position).unwrap();
-        match node.inner.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(node),
+        let node_opt = self.data.get_mut(position);
+        match node_opt {
+            None => Err(ParaxisError::UnintNode),
+            Some(node) => Ok(node),
         }
     }
     fn in_grid_bounds(&self, position: &[i32; N]) -> bool {

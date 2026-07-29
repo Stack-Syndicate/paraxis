@@ -33,13 +33,14 @@ impl<T: Clone, const N: usize> Grid<T, [f32; N]> for SparseGrid<T, N> {
             return Err(ParaxisError::OutOfBounds);
         }
         let position_bytes = bytemuck::cast_slice(position);
-        let node = self.data.get_mut(position_bytes).unwrap();
-        if node.inner.is_some() {
-            let node_clone = node.clone();
-            node.inner = None;
-            Ok(node_clone)
-        } else {
-            Err(ParaxisError::EmptyPosition)
+        let node_opt = self.data.get_mut(position_bytes);
+        match node_opt {
+            Some(node) => {
+                let node_clone = node.clone();
+                node.inner = None;
+                Ok(node_clone)
+            }
+            None => Err(ParaxisError::UnintNode),
         }
     }
     fn get(&self, position: &[f32; N]) -> Result<&Node<T, [f32; N]>, ParaxisError> {
@@ -47,10 +48,10 @@ impl<T: Clone, const N: usize> Grid<T, [f32; N]> for SparseGrid<T, N> {
             return Err(ParaxisError::OutOfBounds);
         }
         let position_bytes = bytemuck::cast_slice(position);
-        let value_opt = self.data.get(position_bytes);
-        match value_opt.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(value_opt.unwrap()),
+        let node_opt = self.data.get(position_bytes);
+        match node_opt {
+            Some(node) => Ok(node),
+            None => Err(ParaxisError::UnintNode),
         }
     }
     fn get_mut(&mut self, position: &[f32; N]) -> Result<&mut Node<T, [f32; N]>, ParaxisError> {
@@ -58,10 +59,10 @@ impl<T: Clone, const N: usize> Grid<T, [f32; N]> for SparseGrid<T, N> {
             return Err(ParaxisError::OutOfBounds);
         }
         let position_bytes = bytemuck::cast_slice(position);
-        let value_opt = self.data.get_mut(position_bytes);
-        match value_opt.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(value_opt.unwrap()),
+        let node_opt = self.data.get_mut(position_bytes);
+        match node_opt {
+            Some(node) => Ok(node),
+            None => Err(ParaxisError::UnintNode),
         }
     }
     fn in_grid_bounds(&self, position: &[f32; N]) -> bool {

@@ -1,7 +1,4 @@
-use paraxis::{
-    common::{errors::ParaxisError, traits::Grid},
-    discrete::grid::DenseGrid,
-};
+use paraxis::{common::traits::Grid, discrete::grid::DenseGrid};
 
 #[test]
 fn initialization() {
@@ -13,11 +10,12 @@ fn initialization() {
 fn insert_get() {
     let mut grid = DenseGrid::<i32, 2>::new([50, 50]).unwrap();
     let pos = [12, 40];
-    assert!(matches!(grid.get(&pos), Err(ParaxisError::EmptyPosition)));
     assert!(grid.insert(42, &pos).is_ok());
     let node = grid.get(&pos).unwrap();
     assert_eq!(node.position, pos);
     assert_eq!(node.inner, Some(42));
+    let empty_node = grid.get(&[10, 10]).unwrap();
+    assert!(empty_node.inner.is_none());
 }
 
 #[test]
@@ -26,7 +24,7 @@ fn insert_remove() {
     let pos = [12, 40];
     assert!(grid.insert(10, &pos).is_ok());
     assert!(grid.remove(&pos).is_ok());
-    assert!(grid.remove(&[20, 20]).is_err());
+    assert!(grid.get(&pos).unwrap().inner.is_none());
 }
 
 #[test]
