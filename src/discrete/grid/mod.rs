@@ -7,7 +7,7 @@ pub struct DenseGrid<T, const N: usize> {
     size: [i32; N],
 }
 impl<T: Clone, const N: usize> Grid<T, [i32; N]> for DenseGrid<T, N> {
-    fn new(size: [i32; N]) -> Result<impl Grid<T, [i32; N]>, ParaxisError> {
+    fn new(size: [i32; N]) -> Result<Self, ParaxisError> {
         if size.iter().any(|s| *s < 0) {
             return Err(ParaxisError::NegativeSize);
         }
@@ -25,28 +25,25 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for DenseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get_mut(grid_id(self.size, *position));
-        match value_opt.is_none() {
-            true => return Err(ParaxisError::EmptyPosition),
-            false => {
-                let value = value_opt.unwrap();
-                value.inner = Some(data);
-            }
+        let node_opt = self.data.get_mut(grid_id(self.size, *position));
+        if let Some(node) = node_opt {
+            node.inner = Some(data);
+            Ok(())
+        } else {
+            Err(ParaxisError::UnintNode)
         }
-        Ok(())
     }
     fn remove(&mut self, position: &[i32; N]) -> Result<Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get_mut(grid_id(self.size, *position));
-        match value_opt.is_none() {
+        let node = self.data.get_mut(grid_id(self.size, *position)).unwrap();
+        match node.inner.is_none() {
             true => Err(ParaxisError::EmptyPosition),
             false => {
-                let value = value_opt.unwrap();
-                let value_clone = value.clone();
-                value.inner = None;
-                Ok(value_clone)
+                let node_clone = node.clone();
+                node.inner = None;
+                Ok(node_clone)
             }
         }
     }
@@ -54,26 +51,20 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for DenseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get(grid_id(self.size, *position));
-        match value_opt.is_none() {
+        let node = self.data.get(grid_id(self.size, *position)).unwrap();
+        match node.inner.is_none() {
             true => Err(ParaxisError::EmptyPosition),
-            false => {
-                let value = value_opt.unwrap();
-                Ok(value)
-            }
+            false => Ok(node),
         }
     }
     fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get_mut(grid_id(self.size, *position));
-        match value_opt.is_none() {
+        let node = self.data.get_mut(grid_id(self.size, *position)).unwrap();
+        match node.inner.is_none() {
             true => Err(ParaxisError::EmptyPosition),
-            false => {
-                let value = value_opt.unwrap();
-                Ok(value)
-            }
+            false => Ok(node),
         }
     }
     fn in_grid_bounds(&self, position: &[i32; N]) -> bool {
@@ -89,7 +80,7 @@ pub struct SparseGrid<T, const N: usize> {
     size: [i32; N],
 }
 impl<T: Clone, const N: usize> Grid<T, [i32; N]> for SparseGrid<T, N> {
-    fn new(size: [i32; N]) -> Result<impl Grid<T, [i32; N]>, ParaxisError> {
+    fn new(size: [i32; N]) -> Result<Self, ParaxisError> {
         if size.iter().any(|s| *s < 0) {
             return Err(ParaxisError::NegativeSize);
         }
@@ -100,43 +91,46 @@ impl<T: Clone, const N: usize> Grid<T, [i32; N]> for SparseGrid<T, N> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        self.data
-            .entry(*position)
-            .or_insert_with(|| Node {
+        self.data.insert(
+            *position,
+            Node {
+                inner: Some(data),
                 position: *position,
-                inner: None,
-            })
-            .inner = Some(data);
+            },
+        );
         Ok(())
     }
     fn remove(&mut self, position: &[i32; N]) -> Result<Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         };
-        let remove_opt = self.data.remove(position);
-        match remove_opt.is_none() {
-            true => Err(ParaxisError::EmptyPosition),
-            false => Ok(remove_opt.unwrap()),
+        let node_opt = self.data.get_mut(position);
+        if let Some(node) = node_opt {
+            let node_clone = node.clone();
+            node.inner = None;
+            Ok(node_clone)
+        } else {
+            Err(ParaxisError::UnintNode)
         }
     }
     fn get(&self, position: &[i32; N]) -> Result<&Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get(position);
-        match value_opt.is_none() {
+        let node = self.data.get(position).unwrap();
+        match node.inner.is_none() {
             true => Err(ParaxisError::EmptyPosition),
-            false => Ok(value_opt.unwrap()),
+            false => Ok(node),
         }
     }
     fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<T, [i32; N]>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let value_opt = self.data.get_mut(position);
-        match value_opt.is_none() {
+        let node = self.data.get_mut(position).unwrap();
+        match node.inner.is_none() {
             true => Err(ParaxisError::EmptyPosition),
-            false => Ok(value_opt.unwrap()),
+            false => Ok(node),
         }
     }
     fn in_grid_bounds(&self, position: &[i32; N]) -> bool {

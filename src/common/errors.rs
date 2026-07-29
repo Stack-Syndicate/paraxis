@@ -8,4 +8,6 @@ pub enum ParaxisError {
     EmptyPosition,
     #[error("Position out of bounds")]
     OutOfBounds,
+    #[error("Uninitialised node")]
+    UnintNode,
 }

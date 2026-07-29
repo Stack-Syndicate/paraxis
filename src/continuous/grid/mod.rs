@@ -7,7 +7,7 @@ pub struct SparseGrid<T, const N: usize> {
     size: [f32; N],
 }
 impl<T: Clone, const N: usize> Grid<T, [f32; N]> for SparseGrid<T, N> {
-    fn new(size: [f32; N]) -> Result<impl Grid<T, [f32; N]>, ParaxisError> {
+    fn new(size: [f32; N]) -> Result<Self, ParaxisError> {
         if size.iter().any(|s| *s < 0.0) {
             return Err(ParaxisError::NegativeSize);
         }
@@ -33,10 +33,13 @@ impl<T: Clone, const N: usize> Grid<T, [f32; N]> for SparseGrid<T, N> {
             return Err(ParaxisError::OutOfBounds);
         }
         let position_bytes = bytemuck::cast_slice(position);
-        let value_opt = self.data.remove(position_bytes);
-        match value_opt {
-            Some(value) => Ok(value),
-            None => Err(ParaxisError::EmptyPosition),
+        let node = self.data.get_mut(position_bytes).unwrap();
+        if node.inner.is_some() {
+            let node_clone = node.clone();
+            node.inner = None;
+            Ok(node_clone)
+        } else {
+            Err(ParaxisError::EmptyPosition)
         }
     }
     fn get(&self, position: &[f32; N]) -> Result<&Node<T, [f32; N]>, ParaxisError> {
