@@ -43,9 +43,9 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for KDTree<[f32; N], D> {
             data.push(Node::new(position, Some(payload)));
             if let Some(parent_index) = item.parent_opt {
                 if item.is_left {
-                    data[parent_index].write().prev = Some(current_index);
+                    data[parent_index].prev = Some(current_index);
                 } else {
-                    data[parent_index].write().next = Some(current_index);
+                    data[parent_index].next = Some(current_index);
                 }
             }
             if !right.is_empty() {
@@ -81,8 +81,8 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for KDTree<[f32; N], D> {
         self.insertions += 1;
         let mut current_index = 0;
         while let Some(node) = self.data.get(current_index) {
-            let left_opt = node.read().prev;
-            let right_opt = node.read().next;
+            let left_opt = node.prev;
+            let right_opt = node.next;
             match (left_opt, right_opt) {
                 (Some(left_index), Some(right_index)) => {
                     let dist_left = squared_distance(position, &self.data[left_index].position);
@@ -101,7 +101,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for KDTree<[f32; N], D> {
                     current_index = right_index;
                 }
                 (None, None) => {
-                    self.data[current_index].write().next = Some(self.data.len());
+                    self.data[current_index].next = Some(self.data.len());
                     self.data.push(Node::new(*position, Some(data)));
                     break;
                 }
@@ -141,39 +141,42 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for KDTree<[f32; N], D> {
             return Ok(vec![]);
         }
         let mut heap: BinaryHeap<(OrderedFloat<f32>, usize)> = BinaryHeap::with_capacity(k);
-        let mut stack = vec![(0, 0)];
-        while let Some((index, depth)) = stack.pop() {
+        let mut stack = [(0, 0); 128];
+        let mut stack_pointer = 1;
+        let mut worst_dist = f32::MAX;
+        while stack_pointer > 0 {
+            stack_pointer -= 1;
+            let (index, depth) = stack[stack_pointer];
             let node = &self.data[index];
-            let dist = OrderedFloat::from(squared_distance(&node.position, position));
+            let dist = squared_distance(&node.position, position);
+            let ordered_dist = OrderedFloat::from(dist);
             if heap.len() < k {
-                heap.push((dist, index));
-            } else if let Some(&max) = heap.peek()
-                && dist < max.0
-            {
+                heap.push((ordered_dist, index));
+                if heap.len() == k {
+                    worst_dist = heap.peek().unwrap().0.into_inner();
+                }
+            } else if dist < worst_dist {
                 heap.pop();
-                heap.push((dist, index));
+                heap.push((ordered_dist, index));
+                worst_dist = heap.peek().unwrap().0.into_inner();
             }
             let axis = depth % N;
             let diff = position[axis] - node.position[axis];
-            let node_inner = node.read();
+            let axis_dist = diff * diff;
             let (near, far) = if diff <= 0.0 {
-                (node_inner.prev, node_inner.next)
+                (node.prev, node.next)
             } else {
-                (node_inner.next, node_inner.prev)
+                (node.next, node.prev)
             };
             if let Some(near_index) = near {
-                stack.push((near_index, depth + 1));
+                stack[stack_pointer] = (near_index, depth + 1);
+                stack_pointer += 1;
             }
-            let current_worst_dist = if heap.len() < k {
-                OrderedFloat::from(f32::MAX)
-            } else {
-                heap.peek().unwrap().0
-            };
-            let axis_dist = OrderedFloat::from(diff * diff);
-            if axis_dist < current_worst_dist
+            if axis_dist < worst_dist
                 && let Some(far_index) = far
             {
-                stack.push((far_index, depth + 1));
+                stack[stack_pointer] = (far_index, depth + 1);
+                stack_pointer += 1;
             }
         }
         let result: Vec<&Node<[f32; N], D>> =

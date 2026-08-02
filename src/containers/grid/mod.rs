@@ -21,7 +21,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
         let position_bytes = bytemuck::cast_slice(position);
         self.data
             .entry(position_bytes.to_vec())
-            .or_insert_with(|| Node::new(position.clone(), Some(data)));
+            .or_insert_with(|| Node::new(*position, Some(data)));
         Ok(())
     }
     fn remove(&mut self, position: &[f32; N]) -> Result<Node<[f32; N], D>, ParaxisError> {
@@ -82,9 +82,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
         let iter = size.iter().map(|len| 0..*len).multi_cartesian_product();
         for indices in iter {
             data.push(Node::new(
-                TryInto::<[i32; N]>::try_into(indices.as_slice())
-                    .unwrap()
-                    .clone(),
+                TryInto::<[i32; N]>::try_into(indices.as_slice()).unwrap(),
                 None,
             ));
         }

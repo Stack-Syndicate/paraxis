@@ -9,6 +9,10 @@ categories = ["mathematics"]
 license = "MIT"
 repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 
+[[bench]]
+name = "trees"
+harness = false
+
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
 itertools = "0.15.0"
@@ -18,3 +22,5 @@ thiserror = "2.0.19"
 
 [dev-dependencies]
 raylib = "6.0.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+rand = "0.10.2"
