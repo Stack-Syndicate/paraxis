@@ -21,13 +21,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
         let position_bytes = bytemuck::cast_slice(position);
         self.data
             .entry(position_bytes.to_vec())
-            .or_insert_with(|| Node {
-                position: *position,
-                inner: None,
-                next: None,
-                prev: None,
-            })
-            .inner = Some(data);
+            .or_insert_with(|| Node::new(position.clone(), Some(data)));
         Ok(())
     }
     fn remove(&mut self, position: &[f32; N]) -> Result<Node<[f32; N], D>, ParaxisError> {
@@ -39,7 +33,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
         match node_opt {
             Some(node) => {
                 let node_clone = node.clone();
-                node.inner = None;
+                node.write().inner = None;
                 Ok(node_clone)
             }
             None => Err(ParaxisError::UnintNode),
@@ -87,12 +81,12 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
         let mut data = Vec::new();
         let iter = size.iter().map(|len| 0..*len).multi_cartesian_product();
         for indices in iter {
-            data.push(Node::<[i32; N], D> {
-                position: TryInto::<[i32; N]>::try_into(indices.as_slice()).unwrap(),
-                inner: None,
-                next: None,
-                prev: None,
-            });
+            data.push(Node::new(
+                TryInto::<[i32; N]>::try_into(indices.as_slice())
+                    .unwrap()
+                    .clone(),
+                None,
+            ));
         }
         Ok(Self { data, size: *size })
     }
@@ -102,7 +96,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
         }
         let node_opt = self.data.get_mut(grid_id(self.size, *position));
         if let Some(node) = node_opt {
-            node.inner = Some(data);
+            node.write().inner = Some(data);
             Ok(())
         } else {
             Err(ParaxisError::UnintNode)
@@ -117,7 +111,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
             None => Err(ParaxisError::UnintNode),
             Some(node) => {
                 let node_clone = node.clone();
-                node.inner = None;
+                node.write().inner = None;
                 Ok(node_clone)
             }
         }
@@ -166,15 +160,8 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        self.data.insert(
-            *position,
-            Node {
-                inner: Some(data),
-                position: *position,
-                next: None,
-                prev: None,
-            },
-        );
+        self.data
+            .insert(*position, Node::new(*position, Some(data)));
         Ok(())
     }
     fn remove(&mut self, position: &[i32; N]) -> Result<Node<[i32; N], D>, ParaxisError> {
@@ -184,7 +171,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
         let node_opt = self.data.get_mut(position);
         if let Some(node) = node_opt {
             let node_clone = node.clone();
-            node.inner = None;
+            node.write().inner = None;
             Ok(node_clone)
         } else {
             Err(ParaxisError::UnintNode)

@@ -20,6 +20,9 @@ pub trait Tree<P, D> {
     fn new(raw_data: Vec<(P, D)>) -> Self;
     fn add(&mut self, position: &P, data: D);
     fn rebalance(&mut self);
-    fn nearest_neighbour(&self, position: &P) -> Result<&Node<P, D>, ParaxisError>;
-    fn nearest_neighbour_mut(&mut self, position: &P) -> Result<&mut Node<P, D>, ParaxisError>;
+    fn k_nearest_neighbours(
+        &self,
+        position: &P,
+        k: usize,
+    ) -> Result<Vec<&Node<P, D>>, ParaxisError>;
 }

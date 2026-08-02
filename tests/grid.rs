@@ -13,9 +13,9 @@ fn insert_get() {
     assert!(grid.insert(42, &pos).is_ok());
     let node = grid.get(&pos).unwrap();
     assert_eq!(node.position, pos);
-    assert_eq!(node.inner, Some(42));
+    assert_eq!(node.read().inner, Some(42));
     let empty_node = grid.get(&[10, 10]).unwrap();
-    assert!(empty_node.inner.is_none());
+    assert!(empty_node.read().inner.is_none());
 }
 
 #[test]
@@ -24,7 +24,7 @@ fn insert_remove() {
     let pos = [12, 40];
     assert!(grid.insert(10, &pos).is_ok());
     assert!(grid.remove(&pos).is_ok());
-    assert!(grid.get(&pos).unwrap().inner.is_none());
+    assert!(grid.get(&pos).unwrap().read().inner.is_none());
 }
 
 #[test]
@@ -45,11 +45,11 @@ fn multidimensional_3d_and_4d() {
     let mut grid3d = DenseGrid::new(&[5, 5, 5]).unwrap();
     let pos3d = [2, 3, 4];
     assert!(grid3d.insert("cube", &pos3d).is_ok());
-    assert_eq!(grid3d.get(&pos3d).unwrap().inner, Some("cube"));
+    assert_eq!(grid3d.get(&pos3d).unwrap().read().inner, Some("cube"));
     let mut grid4d = DenseGrid::new(&[3, 3, 3, 3]).unwrap();
     let pos4d = [1, 2, 0, 2];
     assert!(grid4d.insert(99, &pos4d).is_ok());
-    assert_eq!(grid4d.get(&pos4d).unwrap().inner, Some(99));
+    assert_eq!(grid4d.get(&pos4d).unwrap().read().inner, Some(99));
 }
 
 #[test]
@@ -57,9 +57,9 @@ fn insert_overwrite() {
     let mut grid = DenseGrid::new(&[5, 5]).unwrap();
     let pos = [2, 2];
     assert!(grid.insert(100, &pos).is_ok());
-    assert_eq!(grid.get(&pos).unwrap().inner, Some(100));
+    assert_eq!(grid.get(&pos).unwrap().read().inner, Some(100));
     assert!(grid.insert(200, &pos).is_ok());
-    assert_eq!(grid.get(&pos).unwrap().inner, Some(200));
+    assert_eq!(grid.get(&pos).unwrap().read().inner, Some(200));
 }
 
 #[test]
