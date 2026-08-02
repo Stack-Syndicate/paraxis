@@ -2,13 +2,13 @@ use paraxis::{common::traits::Grid, containers::grid::DenseGrid};
 
 #[test]
 fn initialization() {
-    assert!(DenseGrid::<&str, 2>::new([10, 10]).is_ok());
-    assert!(DenseGrid::<&str, 2>::new([-10, 10]).is_err());
+    assert!(DenseGrid::<[i32; 2], i32>::new(&[10, 10]).is_ok());
+    assert!(DenseGrid::<[i32; 2], i32>::new(&[10, 10]).is_ok());
 }
 
 #[test]
 fn insert_get() {
-    let mut grid = DenseGrid::<i32, 2>::new([50, 50]).unwrap();
+    let mut grid = DenseGrid::new(&[50, 50]).unwrap();
     let pos = [12, 40];
     assert!(grid.insert(42, &pos).is_ok());
     let node = grid.get(&pos).unwrap();
@@ -20,7 +20,7 @@ fn insert_get() {
 
 #[test]
 fn insert_remove() {
-    let mut grid = DenseGrid::<i32, 2>::new([50, 50]).unwrap();
+    let mut grid = DenseGrid::new(&[50, 50]).unwrap();
     let pos = [12, 40];
     assert!(grid.insert(10, &pos).is_ok());
     assert!(grid.remove(&pos).is_ok());
@@ -29,7 +29,7 @@ fn insert_remove() {
 
 #[test]
 fn bounds_checking() {
-    let mut grid = DenseGrid::<i32, 2>::new([10, 10]).unwrap();
+    let mut grid = DenseGrid::new(&[10, 10]).unwrap();
     let edge_pos = [9, 9];
     assert!(grid.insert(1, &edge_pos).is_ok());
     assert!(grid.get(&edge_pos).is_ok());
@@ -42,11 +42,11 @@ fn bounds_checking() {
 
 #[test]
 fn multidimensional_3d_and_4d() {
-    let mut grid3d = DenseGrid::<&str, 3>::new([5, 5, 5]).unwrap();
+    let mut grid3d = DenseGrid::new(&[5, 5, 5]).unwrap();
     let pos3d = [2, 3, 4];
     assert!(grid3d.insert("cube", &pos3d).is_ok());
     assert_eq!(grid3d.get(&pos3d).unwrap().inner, Some("cube"));
-    let mut grid4d = DenseGrid::<i32, 4>::new([3, 3, 3, 3]).unwrap();
+    let mut grid4d = DenseGrid::new(&[3, 3, 3, 3]).unwrap();
     let pos4d = [1, 2, 0, 2];
     assert!(grid4d.insert(99, &pos4d).is_ok());
     assert_eq!(grid4d.get(&pos4d).unwrap().inner, Some(99));
@@ -54,7 +54,7 @@ fn multidimensional_3d_and_4d() {
 
 #[test]
 fn insert_overwrite() {
-    let mut grid = DenseGrid::<i32, 2>::new([5, 5]).unwrap();
+    let mut grid = DenseGrid::new(&[5, 5]).unwrap();
     let pos = [2, 2];
     assert!(grid.insert(100, &pos).is_ok());
     assert_eq!(grid.get(&pos).unwrap().inner, Some(100));
@@ -64,7 +64,7 @@ fn insert_overwrite() {
 
 #[test]
 fn zero_size_dimension() {
-    let grid = DenseGrid::<i32, 2>::new([0, 10]);
+    let grid = DenseGrid::<[i32; 2], i32>::new(&[0, 10]);
     assert!(grid.is_ok());
     if let Ok(g) = grid {
         assert!(g.get(&[0, 0]).is_err());

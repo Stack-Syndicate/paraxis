@@ -1,5 +1,7 @@
-#[derive(Clone, Copy)]
-pub struct Node<T, P> {
+#[derive(Debug, Clone)]
+pub struct Node<P, D> {
     pub position: P,
-    pub inner: Option<T>,
+    pub inner: Option<D>,
+    pub next: Option<usize>,
+    pub prev: Option<usize>,
 }

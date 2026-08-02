@@ -1,7 +1,6 @@
-use paraxis::containers::tree::{KDTree, Tree};
+use paraxis::{common::traits::Tree, containers::tree::KDTree};
 
 #[test]
-fn tree() {
-    let mut tree = KDTree::new();
-    tree.add([10.0, 10.0, 10.0], "hello");
+fn instantiation() {
+    let tree = KDTree::new(vec![([1], "a"), ([2], "b"), ([-1], "c")]);
 }
