@@ -5,13 +5,13 @@ use rand::RngExt;
 fn kd_tree(c: &mut Criterion) {
     let mut rng = rand::rng();
     let mut points = Vec::new();
-    for _ in 0..100_000 {
+    for _ in 0..1_000_000 {
         points.push((
             [rng.random_range(0.0..=100.0), rng.random_range(0.0..=100.0)],
             (),
         ));
     }
-    let tree = KDTree::new(points);
+    let tree = KDTree::new(points.clone());
     c.bench_function("nearest_neighbour", |b| {
         b.iter(|| tree.k_nearest_neighbours(&[50.0, 50.0], 1));
     });

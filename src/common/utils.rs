@@ -1,8 +1,3 @@
-use std::{
-    iter::Sum,
-    ops::{Mul, Sub},
-};
-
 pub fn grid_id<const N: usize>(size: [i32; N], position: [i32; N]) -> usize {
     let mut index = 0usize;
     let mut stride = 1usize;
@@ -13,15 +8,12 @@ pub fn grid_id<const N: usize>(size: [i32; N], position: [i32; N]) -> usize {
     index
 }
 
-pub fn squared_distance<T: Sub<T, Output = T> + Mul<T, Output = T> + Sum + Copy, const N: usize>(
-    a: &[T; N],
-    b: &[T; N],
-) -> T {
-    a.iter()
-        .zip(b.iter())
-        .map(|(&x, &y)| {
-            let diff = x - y;
-            diff * diff
-        })
-        .sum()
+#[inline(always)]
+pub fn squared_distance<const N: usize>(a: &[f32; N], b: &[f32; N]) -> f32 {
+    let mut sum = 0.0;
+    for i in 0..N {
+        let diff = a[i] - b[i];
+        sum = diff.mul_add(diff, sum);
+    }
+    sum
 }

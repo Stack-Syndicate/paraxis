@@ -482,10 +482,10 @@ dependencies = [
  "bytemuck",
  "criterion",
  "itertools 0.15.0",
- "num-traits",
  "ordered-float",
  "rand",
  "raylib",
+ "rayon",
  "thiserror",
 ]
 

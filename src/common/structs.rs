@@ -8,16 +8,17 @@ pub struct NodeData<D> {
 #[derive(Debug)]
 pub struct Node<P, D> {
     pub position: P,
-    pub next: Option<usize>,
-    pub prev: Option<usize>,
+    pub bounds: Option<(P, P)>,
+    pub next: usize,
+    pub prev: usize,
     inner: RwLock<NodeData<D>>,
 }
 impl<P: Clone, D: Clone> Clone for Node<P, D> {
     fn clone(&self) -> Self {
-        let position = self.position.clone();
         let inner = self.inner.read().unwrap().inner.clone();
         Self {
-            position,
+            position: self.position.clone(),
+            bounds: self.bounds.clone(),
             inner: RwLock::new(NodeData { inner }),
             prev: self.prev,
             next: self.next,
@@ -28,9 +29,19 @@ impl<P, D> Node<P, D> {
     pub fn new(position: P, data: Option<D>) -> Self {
         Self {
             position,
+            bounds: None,
             inner: RwLock::new(NodeData { inner: data }),
-            next: None,
-            prev: None,
+            next: usize::MAX,
+            prev: usize::MAX,
+        }
+    }
+    pub fn new_bounded(position: P, bounds: (P, P), data: Option<D>) -> Self {
+        Self {
+            position,
+            bounds: Some(bounds),
+            inner: RwLock::new(NodeData { inner: data }),
+            next: usize::MAX,
+            prev: usize::MAX,
         }
     }
     pub fn write(&self) -> RwLockWriteGuard<'_, NodeData<D>> {
