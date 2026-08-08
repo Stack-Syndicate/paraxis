@@ -51,3 +51,22 @@ impl<P, D> Node<P, D> {
         self.inner.read().unwrap()
     }
 }
+
+pub struct Ray<const N: usize> {
+    pub origin: [f32; N],
+    pub direction: [f32; N],
+    pub inv_direction: [f32; N],
+}
+impl<const N: usize> Ray<N> {
+    pub fn new(origin: [f32; N], direction: [f32; N]) -> Self {
+        let mut inv_direction = [0.0; N];
+        for i in 0..N {
+            inv_direction[i] = 1.0 / direction[i];
+        }
+        Self {
+            origin,
+            direction,
+            inv_direction,
+        }
+    }
+}

@@ -1,6 +1,9 @@
-use itertools::{Itertools, partition};
-
-use crate::common::{errors::ParaxisError, structs::Node, traits::Tree, utils::squared_distance};
+use crate::common::{
+    errors::ParaxisError,
+    structs::{Node, Ray},
+    traits::Tree,
+    utils::{intersect_voxel, squared_distance},
+};
 
 pub struct KDTree<P, D> {
     data: Vec<Node<P, D>>,
@@ -188,7 +191,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for KDTree<[f32; N], D> {
 }
 
 pub struct BIHierarchy<P, D> {
-    data: Vec<Node<P, D>>,
+    pub data: Vec<Node<P, D>>,
     insertions: usize,
 }
 impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
@@ -216,6 +219,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                 continue;
             }
             let current_index = data.len();
+
             if item.list.len() == 1 {
                 let position = item.list[0].0;
                 let payload = unsafe { std::ptr::read(&item.list[0].1) };
@@ -229,6 +233,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                 }
                 continue;
             }
+
             let (axis, _, min, max) = (0..N)
                 .map(|axis| {
                     let (min, max) = item
@@ -243,20 +248,25 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                 .unwrap();
 
             let split_plane = (min + max) * 0.5;
+
             let middle_index = item
                 .list
                 .iter_mut()
                 .partition_in_place(|p| p.0[axis] <= split_plane);
+
             let middle_index = if middle_index == 0 || middle_index == item.list.len() {
                 item.list.len() / 2
             } else {
                 middle_index
             };
+
             let (left, right) = item.list.split_at_mut(middle_index);
+
             let l_max = left
                 .iter()
                 .map(|p| p.0[axis])
                 .fold(-f32::INFINITY, f32::max);
+
             let r_min = right
                 .iter()
                 .map(|p| p.0[axis])
@@ -360,7 +370,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
         }
         let mut best_dists = vec![(f32::MAX, 0); k];
         let mut found = 0;
-        let mut stack = [0; 128]; // Stack only needs to track node indices
+        let mut stack = [0; 128];
         let mut stack_pointer = 1;
         let mut worst_dist = f32::MAX;
 
@@ -373,34 +383,41 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                 let l_max = l_bound[axis];
                 let r_min = r_bound[axis];
                 let q_val = position[axis];
+
                 let left_dist_1d = if q_val > l_max {
                     (q_val - l_max) * (q_val - l_max)
                 } else {
                     0.0
                 };
+
                 let right_dist_1d = if q_val < r_min {
                     (r_min - q_val) * (r_min - q_val)
                 } else {
                     0.0
                 };
+
                 let (near_child, near_dist, far_child, far_dist) = if q_val <= (l_max + r_min) * 0.5
                 {
                     (node.prev, left_dist_1d, node.next, right_dist_1d)
                 } else {
                     (node.next, right_dist_1d, node.prev, left_dist_1d)
                 };
+
                 if far_child != usize::MAX && (found < k || far_dist < worst_dist) {
                     stack[stack_pointer] = far_child;
                     stack_pointer += 1;
                 }
+
                 if near_child != usize::MAX && (found < k || near_dist < worst_dist) {
                     stack[stack_pointer] = near_child;
                     stack_pointer += 1;
                 }
             } else {
                 let dist = squared_distance(&node.position, position);
+
                 if found < k {
                     let mut i = found;
+
                     while i > 0 && dist < best_dists[i - 1].0 {
                         best_dists[i] = best_dists[i - 1];
                         i -= 1;
@@ -413,6 +430,7 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                     }
                 } else if dist < worst_dist {
                     let mut i = k - 1;
+
                     while i > 0 && dist < best_dists[i - 1].0 {
                         best_dists[i] = best_dists[i - 1];
                         i -= 1;
@@ -422,10 +440,84 @@ impl<D: Clone, const N: usize> Tree<[f32; N], D> for BIHierarchy<[f32; N], D> {
                 }
             }
         }
+
         let mut out = Vec::with_capacity(found);
         for &(_, index) in &best_dists[..found] {
             out.push(&self.data[index]);
         }
         Ok(out)
+    }
+}
+impl<const N: usize, D> BIHierarchy<[f32; N], D> {
+    pub fn trace_ray(
+        &self,
+        origin: [f32; N],
+        direction: [f32; N],
+        min_dist: f32,
+        max_dist: f32,
+        voxel_size: f32,
+    ) -> Option<(f32, &Node<[f32; N], D>)> {
+        if self.data.is_empty() {
+            return None;
+        }
+        let mut max_dist = max_dist;
+        let ray = Ray::new(origin, direction);
+        let mut stack = [(0usize, min_dist, max_dist); 128];
+        let mut stack_ptr = 1;
+        let mut closest_hit: Option<(f32, &Node<[f32; N], D>)> = None;
+
+        let radius = voxel_size * 0.5;
+
+        while stack_ptr > 0 {
+            stack_ptr -= 1;
+            let (node_index, node_min_dist, mut node_max_dist) = stack[stack_ptr];
+            node_max_dist = node_max_dist.min(max_dist);
+
+            if node_min_dist >= node_max_dist {
+                continue;
+            }
+
+            let node = &self.data[node_index];
+            if let Some((l_bound, r_bound)) = &node.bounds {
+                let axis = node.position[0] as usize;
+
+                let l_max = l_bound[axis] + radius;
+                let r_min = r_bound[axis] - radius;
+
+                let origin = ray.origin[axis];
+                let inv_direction = ray.inv_direction[axis];
+
+                let dist_left = (l_max - origin) * inv_direction;
+                let dist_right = (r_min - origin) * inv_direction;
+
+                let (near_child, far_child, near_clip_dist, far_clip_dist) =
+                    if ray.direction[axis] >= 0.0 {
+                        (node.prev, node.next, dist_left, dist_right)
+                    } else {
+                        (node.next, node.prev, dist_right, dist_left)
+                    };
+
+                let far_t_min = node_min_dist.max(far_clip_dist);
+                if far_child != usize::MAX && far_t_min < node_max_dist {
+                    stack[stack_ptr] = (far_child, far_t_min, node_max_dist);
+                    stack_ptr += 1;
+                }
+
+                let near_t_max = node_max_dist.min(near_clip_dist);
+                if near_child != usize::MAX && node_min_dist < near_t_max {
+                    stack[stack_ptr] = (near_child, node_min_dist, near_t_max);
+                    stack_ptr += 1;
+                }
+            } else {
+                if let Some(hit_dist) =
+                    intersect_voxel(&ray, &node.position, voxel_size, node_min_dist, max_dist)
+                    && hit_dist < max_dist
+                {
+                    max_dist = hit_dist;
+                    closest_hit = Some((hit_dist, node));
+                }
+            }
+        }
+        closest_hit
     }
 }
