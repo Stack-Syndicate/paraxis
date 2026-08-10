@@ -27,4 +27,4 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATESIO }}
         run: |
-          cargo publish --dry-run
+          cargo publish
