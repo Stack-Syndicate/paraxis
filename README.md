@@ -1,4 +1,4 @@
-<img width=300 src="https://codeberg.org/Stack-Syndicate/paraxis/raw/assets/logo.svg">
+<img width=300 src="https://codeberg.org/Stack-Syndicate/paraxis/raw/assets/logo.png">
 
 [`crates.io`](https://crates.io/crates/paraxis) [`docs.rs`](https://docs.rs/paraxis) [`donate`](https://ko-fi.com/stacksyndicate)
 
