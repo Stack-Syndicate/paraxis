@@ -30,9 +30,9 @@ pub fn intersect_voxel<const N: usize>(
     let half_size = voxel_size * 0.5;
     let mut entry_dist = min_dist;
     let mut exit_dist = max_dist;
-    for i in 0..N {
-        let box_min = point[i] - half_size;
-        let box_max = point[i] + half_size;
+    for (i, p) in point.iter().enumerate().take(N) {
+        let box_min = p - half_size;
+        let box_max = p + half_size;
         let t0 = (box_min - ray.origin[i]) * ray.inv_direction[i];
         let t1 = (box_max - ray.origin[i]) * ray.inv_direction[i];
         let (near_dist, far_dist) = if ray.inv_direction[i] < 0.0 {
