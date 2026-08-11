@@ -10,7 +10,7 @@ jobs:
   publish:
     runs-on: codeberg-small-lazy
     container:
-      image: rust:slim-bookworm
+      image: rust:bookworm
     steps:
       - name: Install node
         run: |
