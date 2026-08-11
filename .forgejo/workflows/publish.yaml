@@ -8,13 +8,13 @@ on:
 
 jobs:
   publish:
-    runs-on: codeberg-tiny-lazy
+    runs-on: codeberg-small-lazy
     container:
       image: rust:slim-bookworm
     steps:
       - name: Install node
         run: |
-          apt-get update && apt-get install nodejs -y
+          apt-get update && apt-get install nodejs build-essential g++ cmake -y
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install Dependencies
