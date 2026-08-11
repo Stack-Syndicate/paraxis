@@ -18,6 +18,8 @@ jobs:
             nodejs \
             build-essential \
             g++ \
+            clang \
+            libclang-dev \
             cmake \
             libx11-dev \
             libxrandr-dev \
@@ -30,8 +32,10 @@ jobs:
           rustup component add clippy
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Dependencies
+      - name: Set Up Rust Nightly
         run: |
+          rustup toolchain install nightly
+          rustup default nightly
           rustup component add clippy
       - name: Check Code Quality
         run: |
