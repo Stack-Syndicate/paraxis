@@ -7,7 +7,7 @@ on:
 
 jobs:
   check-coverage:
-    runs-on: codeberg-tiny-lazy
+    runs-on: codeberg-small-lazy
     container:
       image: rust:slim-bookworm
     steps:
