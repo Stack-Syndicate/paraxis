@@ -6,7 +6,7 @@ version = "0.10.0"
 edition = "2024"
 keywords = ["linear-algebra", "maths", "numpy"]
 categories = ["mathematics"]
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 
 [[bench]]
