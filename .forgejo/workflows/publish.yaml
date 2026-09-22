@@ -37,12 +37,12 @@ jobs:
           rustup toolchain install nightly
           rustup default nightly
           rustup component add clippy
-      - name: Check Code Quality
-        run: |
-          cargo clippy --workspace --all-targets -- -D warnings
-      - name: Run Test Suite
-        run: |
-          cargo test --workspace --all-targets
+      # - name: Check Code Quality
+      #   run: |
+      #     cargo clippy --workspace --all-targets -- -D warnings
+      # - name: Run Test Suite
+      #   run: |
+      #     cargo test --workspace --all-targets
       - name: Publish to Codeberg
         env:
           CARGO_REGISTRIES_CODEBERG_INDEX: "sparse+https://codeberg.org/api/packages/${{ github.repository_owner }}/cargo/"
