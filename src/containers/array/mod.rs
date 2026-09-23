@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, BitOr, Div, Mul, Sub};
 
 use num_traits::Num;
 
@@ -30,13 +30,6 @@ impl<D: Clone> Array<D> {
             strides: vec![1],
         }
     }
-    pub fn strides_from_shape(shape: &[usize]) -> Vec<usize> {
-        let mut strides = vec![1; shape.len()];
-        for i in (0..shape.len().saturating_sub(1)).rev() {
-            strides[i] = strides[i + 1] * shape[i + 1];
-        }
-        strides
-    }
     pub fn from_slice_shape(data: &[D], shape: &[usize]) -> Self {
         if shape.iter().product::<usize>() != data.len() {
             panic!("Shape does not match the total size of the data slice.")
@@ -58,16 +51,118 @@ impl<D: Clone> Array<D> {
         }
     }
     pub fn offset(&self, indices: &[usize]) -> usize {
-        // FIX: Check that the indices match the shape
+        assert_eq!(self.strides.len(), indices.len());
         indices
             .iter()
+            .zip(&self.shape)
             .zip(&self.strides)
-            .map(|(index, stride)| index * stride)
+            .map(|((index, shape), stride)| {
+                assert!(*index < *shape);
+                index * stride
+            })
             .sum()
     }
     pub fn transpose(&mut self) {
         self.strides.reverse();
         self.shape.reverse();
+    }
+    pub fn permute_axes(self, permutation: &[usize]) -> Self {
+        assert_eq!(permutation.len(), self.shape.len());
+        let mut seen = vec![false; self.shape.len()];
+        for &axis in permutation {
+            assert!(axis < self.shape.len());
+            assert!(!seen[axis]);
+            seen[axis] = true;
+        }
+        let mut shape = vec![0; self.shape.len()];
+        let mut strides = vec![0; self.strides.len()];
+        for (i, p) in permutation.iter().enumerate() {
+            shape[i] = self.shape[*p];
+            strides[i] = self.strides[*p];
+        }
+        Self {
+            data: self.data,
+            shape,
+            strides,
+        }
+    }
+    fn strides_from_shape(shape: &[usize]) -> Vec<usize> {
+        let mut strides = vec![1; shape.len()];
+        for i in (0..shape.len().saturating_sub(1)).rev() {
+            strides[i] = strides[i + 1] * shape[i + 1];
+        }
+        strides
+    }
+    fn indices_from_offset(mut offset: usize, shape: &[usize]) -> Vec<usize> {
+        let mut indices = vec![0; shape.len()];
+        for i in (0..shape.len()).rev() {
+            indices[i] = offset % shape[i];
+            offset /= shape[i];
+        }
+        indices
+    }
+    fn move_axis_to_end(ndim: usize, axis: usize) -> Vec<usize> {
+        let mut permutation = Vec::with_capacity(ndim);
+        for i in 0..ndim {
+            if i != axis {
+                permutation.push(i);
+            }
+        }
+        permutation.push(axis);
+        permutation
+    }
+
+    fn move_axis_to_start(ndim: usize, axis: usize) -> Vec<usize> {
+        let mut permutation = Vec::with_capacity(ndim);
+        permutation.push(axis);
+        for i in 0..ndim {
+            if i != axis {
+                permutation.push(i);
+            }
+        }
+        permutation
+    }
+}
+impl<D: Num + Copy> Array<D> {
+    pub fn contract(&self, other: &Array<D>) -> Self {
+        let k = self.shape[self.shape.len() - 1];
+        assert_eq!(k, other.shape[0]);
+        let mut shape = Vec::new();
+        shape.extend_from_slice(&self.shape[..self.shape.len() - 1]);
+        shape.extend_from_slice(&other.shape[1..]);
+        let size = shape.iter().product();
+        let mut data = Vec::with_capacity(size);
+        for offset in 0..size {
+            let indices = Self::indices_from_offset(offset, &shape);
+            let mut lhs_indices = vec![0usize; self.shape.len()];
+            let mut rhs_indices = vec![0usize; other.shape.len()];
+            let lhs_dims = self.shape.len() - 1;
+            lhs_indices[..lhs_dims].copy_from_slice(&indices[..lhs_dims]);
+            rhs_indices[1..].copy_from_slice(&indices[lhs_dims..]);
+            let mut sum = D::zero();
+            for k in 0..self.shape[self.shape.len() - 1] {
+                lhs_indices[lhs_dims] = k;
+                rhs_indices[0] = k;
+                sum = sum
+                    + self.data[self.offset(&lhs_indices)] * other.data[other.offset(&rhs_indices)];
+            }
+            data.push(sum);
+        }
+        Self {
+            data,
+            shape: shape.clone(),
+            strides: Self::strides_from_shape(&shape),
+        }
+    }
+    pub fn contract_axis(self, other: Array<D>, axis: usize, other_axis: usize) -> Array<D> {
+        assert!(axis < self.shape.len());
+        assert!(other_axis < other.shape.len());
+        assert_eq!(self.shape[axis], other.shape[other_axis]);
+        let self_dims = self.shape.len();
+        let other_dims = other.shape.len();
+        let lhs = self.permute_axes(&Self::move_axis_to_end(self_dims, axis));
+        let rhs = other.permute_axes(&Self::move_axis_to_start(other_dims, other_axis));
+        lhs.contract(&rhs)
     }
 }
 impl<D: Num + Copy> Add for Array<D> {
@@ -294,6 +389,12 @@ impl<D: Num + Copy> Div<D> for &Array<D> {
         }
     }
 }
+impl<D: Num + Copy> BitOr for &Array<D> {
+    type Output = Array<D>;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.contract(rhs)
+    }
+}
 
 #[test]
 fn add_array() {
@@ -323,11 +424,31 @@ fn div_array() {
     let v3 = v1 / v2;
     assert_eq!(v3.data, vec![2, 2, 2])
 }
-#[test] // TODO: Implement array + scalar test
-fn add_scalar() {}
-#[test] // TODO: Implement array - scalar test
-fn sub_scalar() {}
-#[test] // TODO: Implement array * scalar test
-fn mul_scalar() {}
-#[test] // TODO: Implement array / scalar test
-fn div_scalar() {}
+#[test]
+fn add_scalar() {
+    let v = Array::from_vec(vec![1, 1, 1]);
+    let s = 10;
+    let r = v + s;
+    assert_eq!(r.data, vec![11, 11, 11])
+}
+#[test]
+fn sub_scalar() {
+    let v = Array::from_vec(vec![1, 1, 1]);
+    let s = 10;
+    let r = v - s;
+    assert_eq!(r.data, vec![-9, -9, -9])
+}
+#[test]
+fn mul_scalar() {
+    let v = Array::from_vec(vec![1, 1, 1]);
+    let s = 10;
+    let r = v * s;
+    assert_eq!(r.data, vec![10, 10, 10])
+}
+#[test]
+fn div_scalar() {
+    let v = Array::from_vec(vec![1.0, 1.0, 1.0]);
+    let s = 10.0;
+    let r = v / s;
+    assert_eq!(r.data, vec![0.1, 0.1, 0.1])
+}
