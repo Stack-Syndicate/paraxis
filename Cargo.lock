@@ -473,9 +473,9 @@ dependencies = [
  "bytemuck",
  "criterion",
  "itertools 0.15.0",
+ "num-traits",
  "rand",
  "raylib",
- "rayon",
  "thiserror",
 ]
 

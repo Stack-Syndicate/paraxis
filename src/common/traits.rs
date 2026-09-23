@@ -1,10 +1,5 @@
 use crate::common::{errors::ParaxisError, structs::Node};
 
-/*
-* P -> Position
-* D -> Data
-* */
-
 pub trait Grid<P, D> {
     fn new(size: &P) -> Result<Self, ParaxisError>
     where
