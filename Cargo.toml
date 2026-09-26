@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A simple to use spatial datastructure crate."
-version = "0.10.1"
+version = "0.10.2"
 edition = "2024"
 keywords = ["linear-algebra", "maths", "numpy"]
 categories = ["mathematics"]
