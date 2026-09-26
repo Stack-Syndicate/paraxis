@@ -1,11 +1,20 @@
-use std::ops::{Add, BitOr, Div, Mul, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
-use num_traits::Num;
+use num_traits::{Float, Num};
 
+#[derive(Debug, Clone)]
 pub struct Array<D> {
     data: Vec<D>,
     shape: Vec<usize>,
     strides: Vec<usize>,
+}
+impl<D> Array<D> {
+    pub fn shape(&self) -> &[usize] {
+        &self.shape
+    }
+    pub fn strides(&self) -> &[usize] {
+        &self.strides
+    }
 }
 impl<D: Clone> Array<D> {
     pub fn empty() -> Self {
@@ -111,7 +120,6 @@ impl<D: Clone> Array<D> {
         permutation.push(axis);
         permutation
     }
-
     fn move_axis_to_start(ndim: usize, axis: usize) -> Vec<usize> {
         let mut permutation = Vec::with_capacity(ndim);
         permutation.push(axis);
@@ -123,10 +131,33 @@ impl<D: Clone> Array<D> {
         permutation
     }
 }
+impl<D: Clone> Index<usize> for Array<D> {
+    type Output = D;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+impl<D: Clone> IndexMut<usize> for Array<D> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+impl<D: Clone> Index<&[usize]> for Array<D> {
+    type Output = D;
+    fn index(&self, indices: &[usize]) -> &Self::Output {
+        &self.data[self.offset(indices)]
+    }
+}
+impl<D: Clone> IndexMut<&[usize]> for Array<D> {
+    fn index_mut(&mut self, indices: &[usize]) -> &mut Self::Output {
+        let offset = self.offset(indices);
+        &mut self.data[offset]
+    }
+}
 impl<D: Num + Copy> Array<D> {
     pub fn contract(&self, other: &Array<D>) -> Self {
         let k = self.shape[self.shape.len() - 1];
-        assert_eq!(k, other.shape[0]);
+        assert_eq!(k, other.shape[0]); // HACK: Add a nice error message
         let mut shape = Vec::new();
         shape.extend_from_slice(&self.shape[..self.shape.len() - 1]);
         shape.extend_from_slice(&other.shape[1..]);
@@ -140,11 +171,10 @@ impl<D: Num + Copy> Array<D> {
             lhs_indices[..lhs_dims].copy_from_slice(&indices[..lhs_dims]);
             rhs_indices[1..].copy_from_slice(&indices[lhs_dims..]);
             let mut sum = D::zero();
-            for k in 0..self.shape[self.shape.len() - 1] {
-                lhs_indices[lhs_dims] = k;
-                rhs_indices[0] = k;
-                sum = sum
-                    + self.data[self.offset(&lhs_indices)] * other.data[other.offset(&rhs_indices)];
+            for ki in 0..self.shape[self.shape.len() - 1] {
+                lhs_indices[lhs_dims] = ki;
+                rhs_indices[0] = ki;
+                sum = sum + self[self.offset(&lhs_indices)] * other[other.offset(&rhs_indices)];
             }
             data.push(sum);
         }
@@ -155,7 +185,7 @@ impl<D: Num + Copy> Array<D> {
         }
     }
     pub fn contract_axis(self, other: Array<D>, axis: usize, other_axis: usize) -> Array<D> {
-        assert!(axis < self.shape.len());
+        assert!(axis < self.shape.len()); // HACK: Add a nice error message
         assert!(other_axis < other.shape.len());
         assert_eq!(self.shape[axis], other.shape[other_axis]);
         let self_dims = self.shape.len();
@@ -163,6 +193,38 @@ impl<D: Num + Copy> Array<D> {
         let lhs = self.permute_axes(&Self::move_axis_to_end(self_dims, axis));
         let rhs = other.permute_axes(&Self::move_axis_to_start(other_dims, other_axis));
         lhs.contract(&rhs)
+    }
+    pub fn dot(&self, other: &Array<D>) -> D {
+        assert!(self.shape.len() == 1); // HACK: Add a nice error message
+        assert!(other.shape.len() == 1);
+        assert_eq!(self.shape, other.shape);
+        let result = self.contract(&other);
+        result[0]
+    }
+    pub fn cross(&self, other: &Array<D>) -> Array<D> {
+        assert!(self.shape.len() == 1); // HACK: Add a nice error message
+        assert!(other.shape.len() == 1);
+        assert_eq!(self.shape, other.shape);
+        assert_eq!(self.shape[0], 3);
+        assert_eq!(other.shape[0], 3);
+        Array::from_vec(vec![
+            self[1] * other[2] - self[2] * other[1],
+            self[2] * other[0] - self[0] * other[2],
+            self[0] * other[1] - self[1] * other[0],
+        ])
+    }
+}
+impl<D: Float + Copy> Array<D> {
+    pub fn norm(&self) -> D {
+        D::sqrt(self.dot(self))
+    }
+    pub fn dist(&self, other: &Array<D>) -> D {
+        (other - self).norm()
+    }
+    pub fn normalize(self) -> Array<D> {
+        let norm = self.norm();
+        assert!(norm > D::zero());
+        self / norm
     }
 }
 impl<D: Num + Copy> Add for Array<D> {
@@ -389,10 +451,26 @@ impl<D: Num + Copy> Div<D> for &Array<D> {
         }
     }
 }
-impl<D: Num + Copy> BitOr for &Array<D> {
+impl<D: Num + Neg<Output = D> + Copy> Neg for Array<D> {
     type Output = Array<D>;
-    fn bitor(self, rhs: Self) -> Self::Output {
-        self.contract(rhs)
+    fn neg(self) -> Self::Output {
+        let data = self.data.iter().map(|d| -*d).collect::<Vec<_>>();
+        Array {
+            data,
+            shape: self.shape,
+            strides: self.strides,
+        }
+    }
+}
+impl<D: Num + Neg<Output = D> + Copy> Neg for &Array<D> {
+    type Output = Array<D>;
+    fn neg(self) -> Self::Output {
+        let data = self.data.iter().map(|d| -*d).collect::<Vec<_>>();
+        Array {
+            data,
+            shape: self.shape.clone(),
+            strides: self.strides.clone(),
+        }
     }
 }
 
@@ -451,4 +529,17 @@ fn div_scalar() {
     let s = 10.0;
     let r = v / s;
     assert_eq!(r.data, vec![0.1, 0.1, 0.1])
+}
+#[test]
+fn dot_product() {
+    let v1 = Array::from_vec(vec![1, 1, 1]);
+    let v2 = Array::from_vec(vec![1, 1, 1]);
+    let r1 = v1.dot(&v2);
+    assert_eq!(r1, 3);
+}
+#[test]
+fn negation() {
+    let v = Array::from_vec(vec![1, 1, 1]);
+    let r = -v;
+    assert_eq!(r.data, vec![-1, -1, -1]);
 }
