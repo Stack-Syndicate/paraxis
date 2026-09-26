@@ -5,6 +5,14 @@ use std::fmt::Debug;
 
 use num_traits::{Float, Num};
 
+#[derive(Debug)]
+pub struct EigenResult<D> {
+    pub values: Array<D>,
+    pub vectors: Array<D>,
+    pub converged: bool,
+    pub iterations: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct Array<D> {
     data: Vec<D>,
@@ -26,6 +34,15 @@ impl<D> Array<D> {
     }
 }
 impl<D: Copy> Array<D> {
+    pub fn column(&self, column: usize) -> Array<D> {
+        assert_eq!(self.shape.len(), 2);
+        let m = self.shape[0];
+        let mut data = Vec::with_capacity(m);
+        for i in 0..m {
+            data.push(self[&[i, column]]);
+        }
+        Array::from_vec(data)
+    }
     pub fn to_cloned_vec(&self) -> Vec<D> {
         self.data.clone()
     }
@@ -145,6 +162,16 @@ impl<D: Copy> Array<D> {
     }
 }
 impl<D: Num + Copy> Array<D> {
+    pub fn trace(&self) -> D {
+        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
+        assert_eq!(self.shape[0], self.shape[1]);
+        let n = self.shape[0];
+        let mut trace = D::zero();
+        for i in 0..n {
+            trace = trace + self[&[i, i]];
+        }
+        trace
+    }
     pub fn identity(n: usize) -> Array<D> {
         let nxn = n * n;
         let mut data = vec![D::zero(); nxn];
@@ -323,13 +350,16 @@ impl<D: Float + Copy> Array<D> {
         }
         (q, r)
     }
-    pub fn eigvals(&self) -> Array<D> {
+    pub fn eigen(&self) -> EigenResult<D> {
         assert_eq!(self.shape.len(), 2);
         assert_eq!(self.shape[0], self.shape[1]);
         let n = self.shape[0];
         let mut a = self.clone();
         let identity = Array::identity(n);
-        for _ in 0..100 {
+        let mut eigenvectors = identity.clone();
+        let mut converged = false;
+        let mut iterations = 0;
+        for i in 0..100 {
             let mu = a[&[n - 1, n - 1]];
             let shifted = &a - &(&identity * mu);
             let (q, r) = shifted.qr();
@@ -346,13 +376,43 @@ impl<D: Float + Copy> Array<D> {
                 }
             }
             if off_diagonal_max < D::from(1e-9).unwrap() {
+                converged = true;
                 break;
             }
+            eigenvectors = eigenvectors.contract(&q);
+            iterations = i;
         }
         let mut eigenvalues = vec![D::zero(); n];
         for i in 0..n {
             eigenvalues[i] = a[&[i, i]];
         }
-        Array::from_vec(eigenvalues)
+        let eigenvalues = Array::from_vec(eigenvalues);
+        EigenResult {
+            values: eigenvalues,
+            vectors: eigenvectors,
+            converged,
+            iterations,
+        }
+    }
+    pub fn solve(&self, b: &Array<D>) -> Array<D> {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(b.shape.len(), 1);
+        assert_eq!(self.shape[0], b.shape[0]);
+        let (q, r) = self.qr();
+        let n = r.shape[0];
+        let qt = q.clone().transpose();
+        let qtb = qt.contract(b);
+        let mut x = vec![D::zero(); n];
+        for i in (0..n).rev() {
+            let diag = r[&[i, i]];
+            assert!(diag.abs() > D::from(1e-12).unwrap());
+            let mut sum = qtb[i];
+            for j in (i + 1)..n {
+                sum = sum - r[&[i, j]] * x[j];
+            }
+            x[i] = sum / diag;
+        }
+        Array::from_vec(x)
     }
 }

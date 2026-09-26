@@ -49,12 +49,27 @@ fn qr_decomposition() {
 #[test]
 fn eigenvalues_symmetric() {
     let a = Array::from_vec_shape(vec![4.0, 1.0, 1.0, 1.0, 4.0, 1.0, 1.0, 1.0, 4.0], &[3, 3]);
-    let eigenvalues = a.eigvals();
-    let mut computed: Vec<f64> = eigenvalues.to_vec().clone();
+    let eigenresult = a.eigen();
+    let mut computed: Vec<f64> = eigenresult.values.to_vec().clone();
     computed.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mut expected = vec![3.0, 3.0, 6.0];
     expected.sort_by(|a, b| a.partial_cmp(b).unwrap());
     for (c, e) in computed.iter().zip(expected.iter()) {
         assert!((c - e).abs() < 1e-9);
+    }
+}
+#[test]
+fn solve_linear_system() {
+    let a = Array::from_vec_shape(
+        vec![12.0, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
+        &[3, 3],
+    );
+    let x_expected = Array::from_vec(vec![1.0, 2.0, 3.0]);
+    let b_matrix = a.contract(&x_expected);
+    let b = Array::from_vec(b_matrix.to_cloned_vec());
+    let x_computed = a.solve(&b);
+    for i in 0..3 {
+        let diff = ((x_computed[i] - x_expected[i]) as f64).abs();
+        assert!(diff < 1e-6,);
     }
 }
