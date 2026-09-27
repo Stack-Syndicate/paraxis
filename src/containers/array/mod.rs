@@ -5,12 +5,27 @@ use std::fmt::Debug;
 
 use num_traits::{Float, Num};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EigenResult<D> {
     pub values: Array<D>,
     pub vectors: Array<D>,
     pub converged: bool,
     pub iterations: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct QrResult<D> {
+    pub q: Array<D>,
+    pub r: Array<D>,
+    pub reflection_count: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct LuResult<D> {
+    pub l: Array<D>,
+    pub u: Array<D>,
+    pub pivots: Vec<usize>,
+    pub swap_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +138,29 @@ impl<D: Copy> Array<D> {
             data: self.data,
             shape,
             strides,
+        }
+    }
+    pub fn swap_elements(&mut self, a: &[usize], b: &[usize]) {
+        assert_eq!(a.len(), self.shape.len());
+        assert_eq!(b.len(), self.shape.len());
+        let a_offset = a
+            .iter()
+            .zip(&self.strides)
+            .map(|(&i, &stride)| i * stride)
+            .sum::<usize>();
+        let b_offset = b
+            .iter()
+            .zip(&self.strides)
+            .map(|(&i, &stride)| i * stride)
+            .sum::<usize>();
+        self.data.swap(a_offset, b_offset);
+    }
+    pub fn swap_rows(&mut self, a: usize, b: usize) {
+        assert!(self.shape.len() >= 2);
+        assert!(a < self.shape[0]);
+        assert!(b < self.shape[0]);
+        for j in 0..self.shape[1] {
+            self.swap_elements(&[a, j], &[b, j]);
         }
     }
     fn strides_from_shape(shape: &[usize]) -> Vec<usize> {
@@ -257,7 +295,7 @@ impl<D: PartialOrd + Copy> Array<D> {
     pub fn min(&self) -> Option<D> {
         self.data.iter().copied().fold(None, |acc, x| match acc {
             None => Some(x),
-            Some(m) if x < m => Some(m),
+            Some(m) if x < m => Some(x),
             Some(m) => Some(m),
         })
     }
@@ -306,12 +344,13 @@ impl<D: Float + Copy> Array<D> {
             sorted[n / 2]
         }
     }
-    pub fn qr(&self) -> (Array<D>, Array<D>) {
+    pub fn qr(&self) -> QrResult<D> {
         assert_eq!(self.shape.len(), 2);
         let m = self.shape[0];
         let n = self.shape[1];
         let mut r = self.clone();
         let mut q = Array::<D>::identity(m);
+        let mut reflection_count = 0;
         for k in 0..n.min(m.saturating_sub(1)) {
             let mut x = Array::from_vec(vec![D::zero(); m - k]);
             for i in k..m {
@@ -321,10 +360,12 @@ impl<D: Float + Copy> Array<D> {
             let alpha = if x[0] >= D::zero() { -norm_x } else { norm_x };
             let mut v = x.clone();
             v[0] = v[0] - alpha;
-            v = v.normalize();
-            if v.norm() <= D::zero() {
+            let v_norm = v.norm();
+            if v_norm <= D::zero() {
                 continue;
             }
+            v = v / v_norm;
+            reflection_count += 1;
             for j in k..n {
                 let mut dot = D::zero();
                 for i in k..m {
@@ -348,7 +389,49 @@ impl<D: Float + Copy> Array<D> {
                 }
             }
         }
-        (q, r)
+        QrResult {
+            q,
+            r,
+            reflection_count,
+        }
+    }
+    pub fn lu(&self) -> LuResult<D> {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape[0], self.shape[1]);
+        let n = self.shape[0];
+        let mut l = Array::identity(n);
+        let mut u = self.clone();
+        let mut pivots = (0..n).collect::<Vec<_>>();
+        let mut swap_count = 0;
+        for k in 0..n {
+            let mut pivot = k;
+            for i in (k + 1)..n {
+                if u[&[i, k]].abs() > u[&[pivot, k]].abs() {
+                    pivot = i;
+                }
+            }
+            if pivot != k {
+                u.swap_rows(k, pivot);
+                pivots.swap(k, pivot);
+                for j in 0..k {
+                    l.swap_elements(&[k, j], &[pivot, j]);
+                }
+                swap_count += 1;
+            }
+            for i in (k + 1)..n {
+                l[&[i, k]] = u[&[i, k]] / u[&[k, k]];
+                for j in (k + 1)..n {
+                    u[&[i, j]] = u[&[i, j]] - l[&[i, k]] * u[&[k, j]];
+                }
+                u[&[i, k]] = D::zero();
+            }
+        }
+        LuResult {
+            l,
+            u,
+            pivots,
+            swap_count,
+        }
     }
     pub fn eigen(&self) -> EigenResult<D> {
         assert_eq!(self.shape.len(), 2);
@@ -359,19 +442,31 @@ impl<D: Float + Copy> Array<D> {
         let mut eigenvectors = identity.clone();
         let mut converged = false;
         let mut iterations = 0;
-        for i in 0..100 {
-            let mu = a[&[n - 1, n - 1]];
+        for i in 0..1000 {
+            let a11 = a[&[n - 2, n - 2]];
+            let a12 = a[&[n - 2, n - 1]];
+            let a21 = a[&[n - 1, n - 2]];
+            let a22 = a[&[n - 1, n - 1]];
+            let half = D::from(2.0).unwrap();
+            let delta = (a11 - a22) / half;
+            let root = (delta * delta + a12 * a21).sqrt();
+            let lambda1 = (a11 + a22) / half + root;
+            let lambda2 = (a11 + a22) / half - root;
+            let mu = if (lambda1 - a22).abs() < (lambda2 - a22).abs() {
+                lambda1
+            } else {
+                lambda2
+            };
             let shifted = &a - &(&identity * mu);
-            let (q, r) = shifted.qr();
-            a = &r.contract(&q) + &(&identity * mu);
+            let qr = shifted.qr();
+            a = &qr.r.contract(&qr.q) + &(&identity * mu);
+            eigenvectors = eigenvectors.contract(&qr.q);
+            iterations = i + 1;
             let mut off_diagonal_max = D::zero();
             for i in 0..n {
                 for j in 0..n {
                     if i != j {
-                        let val = a[&[i, j]].abs();
-                        if val > off_diagonal_max {
-                            off_diagonal_max = val;
-                        }
+                        off_diagonal_max = off_diagonal_max.max(a[&[i, j]].abs());
                     }
                 }
             }
@@ -379,14 +474,8 @@ impl<D: Float + Copy> Array<D> {
                 converged = true;
                 break;
             }
-            eigenvectors = eigenvectors.contract(&q);
-            iterations = i;
         }
-        let mut eigenvalues = vec![D::zero(); n];
-        for i in 0..n {
-            eigenvalues[i] = a[&[i, i]];
-        }
-        let eigenvalues = Array::from_vec(eigenvalues);
+        let eigenvalues = Array::from_vec((0..n).map(|i| a[&[i, i]]).collect());
         EigenResult {
             values: eigenvalues,
             vectors: eigenvectors,
@@ -394,25 +483,86 @@ impl<D: Float + Copy> Array<D> {
             iterations,
         }
     }
-    pub fn solve(&self, b: &Array<D>) -> Array<D> {
+    fn solve_with_lu(&self, b: &Array<D>, lu: &LuResult<D>) -> Array<D> {
         assert_eq!(self.shape.len(), 2);
         assert_eq!(self.shape[0], self.shape[1]);
         assert_eq!(b.shape.len(), 1);
-        assert_eq!(self.shape[0], b.shape[0]);
-        let (q, r) = self.qr();
-        let n = r.shape[0];
-        let qt = q.clone().transpose();
-        let qtb = qt.contract(b);
+        assert_eq!(b.shape[0], self.shape[0]);
+        let n = self.shape[0];
+        let (l, u, pivots) = (&lu.l, &lu.u, &lu.pivots);
+        let mut pb = vec![D::zero(); n];
+        for i in 0..n {
+            pb[i] = b[pivots[i]];
+        }
+        let mut y = vec![D::zero(); n];
+        for i in 0..n {
+            let mut sum = pb[i];
+            for j in 0..i {
+                sum = sum - l[&[i, j]] * y[j];
+            }
+            y[i] = sum / l[&[i, i]];
+        }
         let mut x = vec![D::zero(); n];
         for i in (0..n).rev() {
-            let diag = r[&[i, i]];
+            let diag = u[&[i, i]];
             assert!(diag.abs() > D::from(1e-12).unwrap());
-            let mut sum = qtb[i];
+            let mut sum = y[i];
             for j in (i + 1)..n {
-                sum = sum - r[&[i, j]] * x[j];
+                sum = sum - u[&[i, j]] * x[j];
             }
             x[i] = sum / diag;
         }
         Array::from_vec(x)
+    }
+    pub fn solve(&self, b: &Array<D>) -> Array<D> {
+        let lu = self.lu();
+        self.solve_with_lu(b, &lu)
+    }
+    pub fn rank(&self) -> usize {
+        assert_eq!(self.shape.len(), 2);
+        let qr = self.qr();
+        let n = qr.r.shape[0].min(qr.r.shape[1]);
+        let mut count = 0;
+        for i in 0..n {
+            let mut norm_squared = D::zero();
+            for j in i..qr.r.shape[1] {
+                let x = qr.r[&[i, j]];
+                norm_squared = norm_squared + x * x;
+            }
+            if norm_squared.sqrt() > D::from(1e-9).unwrap() {
+                count += 1;
+            }
+        }
+        count
+    }
+    pub fn det(&self) -> D {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape[0], self.shape[1]);
+        let lu = self.lu();
+        let n = self.shape[0];
+        let mut det = D::one();
+        for i in 0..n {
+            det = det * lu.u[&[i, i]];
+        }
+        if lu.swap_count % 2 == 1 {
+            det = -det;
+        }
+        det
+    }
+    pub fn inverse(&self) -> Array<D> {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape[0], self.shape[1]);
+        let n = self.shape[0];
+        let lu = self.lu();
+        let mut data = vec![D::zero(); n * n];
+        for j in 0..n {
+            let mut e_j = vec![D::zero(); n];
+            e_j[j] = D::one();
+            let x = self.solve_with_lu(&Array::from_vec(e_j), &lu);
+            for i in 0..n {
+                data[i * n + j] = x[i];
+            }
+        }
+        Array::from_vec_shape(data, &[n, n])
     }
 }

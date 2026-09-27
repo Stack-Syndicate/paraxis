@@ -1,5 +1,13 @@
 use paraxis::containers::array::Array;
 
+// TODO: Test against other crates (nalgebra maybe)
+
+#[test]
+fn min_max() {
+    let v = Array::from_vec(vec![3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0]);
+    assert_eq!(v.min(), Some(1.0));
+    assert_eq!(v.max(), Some(9.0));
+}
 #[test]
 fn dot_product() {
     let v1 = Array::from_vec(vec![1, 1, 1]);
@@ -19,7 +27,8 @@ fn qr_decomposition() {
         vec![12.0, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
         &[3, 3],
     );
-    let (q, r) = a.qr();
+    let qr = a.qr();
+    let (q, r) = (qr.q, qr.r);
     // Q should be orthogonal: Q^T * Q ≈ I
     let qt = q.clone().transpose();
     let qtq = qt.contract(&q);
@@ -59,6 +68,20 @@ fn eigenvalues_symmetric() {
     }
 }
 #[test]
+fn eigenvectors() {
+    let a = Array::from_vec_shape(vec![4.0, 1.0, 1.0, 1.0, 4.0, 1.0, 1.0, 1.0, 4.0], &[3, 3]);
+    let result = a.eigen();
+    for i in 0..3 {
+        let v = result.vectors.column(i);
+        let lambda = result.values[i];
+        let av = a.contract(&v);
+        for j in 0..3 {
+            let diff = (av[j] as f64 - lambda * v[j] as f64).abs();
+            assert!(diff < 1e-6);
+        }
+    }
+}
+#[test]
 fn solve_linear_system() {
     let a = Array::from_vec_shape(
         vec![12.0, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
@@ -72,4 +95,85 @@ fn solve_linear_system() {
         let diff = ((x_computed[i] - x_expected[i]) as f64).abs();
         assert!(diff < 1e-6,);
     }
+}
+#[test]
+fn determinant_known_value() {
+    let a = Array::from_vec_shape(vec![2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0], &[3, 3]);
+    let det = a.det();
+    assert!((det - 24.0f64).abs() < 1e-9);
+}
+
+#[test]
+fn determinant_sign() {
+    let a = Array::from_vec_shape(vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0], &[3, 3]);
+    let det = a.det();
+    assert!((det - (-1.0f64)).abs() < 1e-9);
+}
+#[test]
+fn determinant_negative_definite() {
+    let a = Array::from_vec_shape(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]);
+    let det = a.det();
+    assert!((det - (-2.0f64)).abs() < 1e-9);
+}
+#[test]
+fn rank_full_rank_matrix() {
+    let a = Array::from_vec_shape(
+        vec![12.0, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
+        &[3, 3],
+    );
+    assert_eq!(a.rank(), 3);
+}
+
+#[test]
+fn rank_deficient_matrix() {
+    let a = Array::from_vec_shape(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 2.0, 4.0, 6.0], &[3, 3]);
+    assert_eq!(a.rank(), 2);
+}
+#[test]
+fn rank_zero_matrix() {
+    let a = Array::from_vec_shape(vec![0.0; 9], &[3, 3]);
+    assert_eq!(a.rank(), 0);
+}
+#[test]
+fn rank_identity() {
+    let a = Array::<f64>::identity(3);
+    assert_eq!(a.rank(), 3);
+}
+#[test]
+fn inverse_reconstructs_identity() {
+    let a = Array::from_vec_shape(
+        vec![12.0, -51.0, 4.0, 6.0, 167.0, -68.0, -4.0, 24.0, -41.0],
+        &[3, 3],
+    );
+    let inv = a.inverse();
+    let product = a.contract(&inv);
+    let identity = Array::<f64>::identity(3);
+    for i in 0..3 {
+        for j in 0..3 {
+            let diff = (product[&[i, j]] - identity[&[i, j]]).abs();
+            assert!(diff < 1e-6);
+        }
+    }
+    let product_rev = inv.contract(&a);
+    for i in 0..3 {
+        for j in 0..3 {
+            let diff = (product_rev[&[i, j]] - identity[&[i, j]]).abs();
+            assert!(diff < 1e-6);
+        }
+    }
+}
+#[test]
+fn determinant_three_cycle() {
+    let a = Array::from_vec_shape(vec![0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], &[3, 3]);
+    assert!((a.det() - 1.0f64).abs() < 1e-9);
+}
+#[test]
+fn rank_rectangular_full_row_rank() {
+    let a = Array::from_vec_shape(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]);
+    assert_eq!(a.rank(), 2);
+}
+#[test]
+fn rank_rectangular_full_column_rank() {
+    let a = Array::from_vec_shape(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[3, 2]);
+    assert_eq!(a.rank(), 2);
 }
