@@ -2,7 +2,7 @@
 name = "paraxis"
 authors = ["Glenn Wallace glennw-coding@proton.me"]
 description = "A simple to use spatial datastructure crate."
-version = "0.10.4"
+version = "0.10.5"
 edition = "2024"
 keywords = ["linear-algebra", "maths", "numpy"]
 categories = ["mathematics"]
@@ -13,13 +13,18 @@ repository = "https://codeberg.org/Stack-Syndicate/paraxis"
 name = "trees"
 harness = false
 
+[[bench]]
+name = "linalg"
+harness = false
+
 [features]
-default = ["parallel"]
-parallel = []
+default = ["complex"]
+complex = ["dep:num-complex"]
 
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
 itertools = "0.15.0"
+num-complex = { version = "0.4.6", optional = true }
 num-traits = "0.2.19"
 thiserror = "2.0.19"
 

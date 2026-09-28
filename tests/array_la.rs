@@ -10,10 +10,10 @@ fn min_max() {
 }
 #[test]
 fn dot_product() {
-    let v1 = Array::from_vec(vec![1, 1, 1]);
-    let v2 = Array::from_vec(vec![1, 1, 1]);
+    let v1 = Array::from_vec(vec![1.0, 1.0, 1.0]);
+    let v2 = Array::from_vec(vec![1.0, 1.0, 1.0]);
     let r1 = v1.dot(&v2);
-    assert_eq!(r1, 3);
+    assert_eq!(r1, 3.0);
 }
 #[test]
 fn negation() {
@@ -28,30 +28,34 @@ fn qr_decomposition() {
         &[3, 3],
     );
     let qr = a.qr();
-    let (q, r) = (qr.q, qr.r);
-    // Q should be orthogonal: Q^T * Q ≈ I
+    let q = qr.q;
+    let r = qr.r;
+    let permutation = qr.permutation;
+    // Q should be orthogonal: Q^T * Q = I
     let qt = q.clone().transpose();
     let qtq = qt.contract(&q);
     let identity = Array::<f64>::identity(3);
+
     for i in 0..3 {
         for j in 0..3 {
             let diff = (qtq[&[i, j]] - identity[&[i, j]]).abs();
-            assert!(diff < 1e-9,);
+            assert!(diff < 1e-9);
         }
     }
-    // R should be upper triangular: entries below the diagonal ≈ 0
+    // R should be upper triangular
     for i in 0..3 {
         for j in 0..i {
             let val = r[&[i, j]];
-            assert!(val.abs() < 1e-9,);
+            assert!(val.abs() < 1e-9);
         }
     }
-    // Q * R should reconstruct A
-    let qr = q.contract(&r);
+    // Q * R should reconstruct the columns of A in pivoted order
+    let qr_product = q.contract(&r);
     for i in 0..3 {
         for j in 0..3 {
-            let diff = (qr[&[i, j]] - a[&[i, j]]).abs();
-            assert!(diff < 1e-9,);
+            let original_column = permutation[j];
+            let diff = (qr_product[&[i, j]] - a[&[i, original_column]]).abs();
+            assert!(diff < 1e-9);
         }
     }
 }
