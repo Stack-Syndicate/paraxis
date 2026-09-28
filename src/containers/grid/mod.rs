@@ -1,14 +1,18 @@
-use crate::common::{errors::ParaxisError, structs::Node, traits::Grid, utils::grid_id};
-use bytemuck::Pod;
+use crate::common::{
+    errors::ParaxisError,
+    structs::Node,
+    traits::Grid,
+    utils::{grid_id, position_key},
+};
 use itertools::Itertools;
-use num_traits::{Float, PrimInt};
+use num_traits::{Float, PrimInt, ToBytes};
 use std::{collections::HashMap, fmt::Debug, hash::Hash, iter::successors};
 
 pub struct ContinuousGrid<P, D> {
-    data: HashMap<Vec<u8>, Node<P, D>>,
+    data: HashMap<u64, Node<P, D>>,
     size: P,
 }
-impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGrid<[T; N], D> {
+impl<T: Float + ToBytes, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGrid<[T; N], D> {
     fn new(size: &[T; N]) -> Result<Self, ParaxisError> {
         if size.iter().any(|s| *s < T::zero()) {
             return Err(ParaxisError::NegativeSize);
@@ -20,9 +24,9 @@ impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGri
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let position_bytes = bytemuck::cast_slice(position);
+        let key = position_key(position);
         self.data
-            .entry(position_bytes.to_vec())
+            .entry(key)
             .or_insert_with(|| Node::new(*position, Some(data)));
         Ok(())
     }
@@ -30,8 +34,8 @@ impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGri
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let position_bytes = bytemuck::cast_slice(position);
-        let node_opt = self.data.get_mut(position_bytes);
+        let key = position_key(position);
+        let node_opt = self.data.get_mut(&key);
         match node_opt {
             Some(node) => {
                 let node_clone = node.clone();
@@ -45,8 +49,8 @@ impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGri
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let position_bytes = bytemuck::cast_slice(position);
-        let node_opt = self.data.get(position_bytes);
+        let key = position_key(position);
+        let node_opt = self.data.get(&key);
         match node_opt {
             Some(node) => Ok(node),
             None => Err(ParaxisError::UnintNode),
@@ -56,8 +60,8 @@ impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGri
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
-        let position_bytes = bytemuck::cast_slice(position);
-        let node_opt = self.data.get_mut(position_bytes);
+        let key = position_key(position);
+        let node_opt = self.data.get_mut(&key);
         match node_opt {
             Some(node) => Ok(node),
             None => Err(ParaxisError::UnintNode),

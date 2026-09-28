@@ -1,6 +1,6 @@
-use num_traits::{Float, PrimInt};
-
 use crate::common::structs::Ray;
+use num_traits::{Float, PrimInt, ToBytes};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub fn grid_id<T: PrimInt, const N: usize>(size: [T; N], position: [T; N]) -> usize {
     let mut index = T::zero();
@@ -49,4 +49,12 @@ pub fn intersect_voxel<T: Float, const N: usize>(
         }
     }
     Some(entry_dist)
+}
+
+pub fn position_key<T: Float + ToBytes, const N: usize>(position: &[T; N]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for &x in position {
+        x.to_ne_bytes().hash(&mut hasher);
+    }
+    hasher.finish()
 }
