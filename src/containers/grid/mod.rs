@@ -1,20 +1,22 @@
 use crate::common::{errors::ParaxisError, structs::Node, traits::Grid, utils::grid_id};
+use bytemuck::Pod;
 use itertools::Itertools;
-use std::collections::HashMap;
+use num_traits::{Float, PrimInt};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, iter::successors};
 
 pub struct ContinuousGrid<P, D> {
     data: HashMap<Vec<u8>, Node<P, D>>,
     size: P,
 }
-impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D> {
-    fn new(size: &[f32; N]) -> Result<Self, ParaxisError> {
-        if size.iter().any(|s| *s < 0.0) {
+impl<T: Float + Pod, D: Clone, const N: usize> Grid<[T; N], D> for ContinuousGrid<[T; N], D> {
+    fn new(size: &[T; N]) -> Result<Self, ParaxisError> {
+        if size.iter().any(|s| *s < T::zero()) {
             return Err(ParaxisError::NegativeSize);
         }
         let data = HashMap::new();
         Ok(Self { data, size: *size })
     }
-    fn insert(&mut self, data: D, position: &[f32; N]) -> Result<(), ParaxisError> {
+    fn insert(&mut self, data: D, position: &[T; N]) -> Result<(), ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -24,7 +26,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
             .or_insert_with(|| Node::new(*position, Some(data)));
         Ok(())
     }
-    fn remove(&mut self, position: &[f32; N]) -> Result<Node<[f32; N], D>, ParaxisError> {
+    fn remove(&mut self, position: &[T; N]) -> Result<Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -39,7 +41,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
             None => Err(ParaxisError::UnintNode),
         }
     }
-    fn get(&self, position: &[f32; N]) -> Result<&Node<[f32; N], D>, ParaxisError> {
+    fn get(&self, position: &[T; N]) -> Result<&Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -50,7 +52,7 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
             None => Err(ParaxisError::UnintNode),
         }
     }
-    fn get_mut(&mut self, position: &[f32; N]) -> Result<&mut Node<[f32; N], D>, ParaxisError> {
+    fn get_mut(&mut self, position: &[T; N]) -> Result<&mut Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -61,11 +63,11 @@ impl<D: Clone, const N: usize> Grid<[f32; N], D> for ContinuousGrid<[f32; N], D>
             None => Err(ParaxisError::UnintNode),
         }
     }
-    fn in_grid_bounds(&self, position: &[f32; N]) -> bool {
+    fn in_grid_bounds(&self, position: &[T; N]) -> bool {
         position
             .iter()
             .zip(self.size.iter())
-            .all(|(&p, &s)| (0.0..s).contains(&p))
+            .all(|(&p, &s)| (T::zero()..s).contains(&p))
     }
 }
 
@@ -73,22 +75,25 @@ pub struct DenseGrid<P, D> {
     data: Vec<Node<P, D>>,
     size: P,
 }
-impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
-    fn new(size: &[i32; N]) -> Result<Self, ParaxisError> {
-        if size.iter().any(|s| *s < 0) {
+impl<T: PrimInt + Debug, D: Clone, const N: usize> Grid<[T; N], D> for DenseGrid<[T; N], D> {
+    fn new(size: &[T; N]) -> Result<Self, ParaxisError> {
+        if size.iter().any(|&s| s < T::zero()) {
             return Err(ParaxisError::NegativeSize);
         }
-        let mut data = Vec::new();
-        let iter = size.iter().map(|len| 0..*len).multi_cartesian_product();
-        for indices in iter {
-            data.push(Node::new(
-                TryInto::<[i32; N]>::try_into(indices.as_slice()).unwrap(),
-                None,
-            ));
-        }
+        let iter = size
+            .iter()
+            .map(|&len| {
+                successors(Some(T::zero()), move |&x| {
+                    (x + T::one() < len).then_some(x + T::one())
+                })
+            })
+            .multi_cartesian_product();
+        let data = iter
+            .map(|indices| Node::new(TryInto::<[T; N]>::try_into(indices).unwrap(), None))
+            .collect();
         Ok(Self { data, size: *size })
     }
-    fn insert(&mut self, data: D, position: &[i32; N]) -> Result<(), ParaxisError> {
+    fn insert(&mut self, data: D, position: &[T; N]) -> Result<(), ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -100,7 +105,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
             Err(ParaxisError::UnintNode)
         }
     }
-    fn remove(&mut self, position: &[i32; N]) -> Result<Node<[i32; N], D>, ParaxisError> {
+    fn remove(&mut self, position: &[T; N]) -> Result<Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -114,7 +119,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
             }
         }
     }
-    fn get(&self, position: &[i32; N]) -> Result<&Node<[i32; N], D>, ParaxisError> {
+    fn get(&self, position: &[T; N]) -> Result<&Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -124,7 +129,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
             Some(node) => Ok(node),
         }
     }
-    fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<[i32; N], D>, ParaxisError> {
+    fn get_mut(&mut self, position: &[T; N]) -> Result<&mut Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -134,11 +139,11 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for DenseGrid<[i32; N], D> {
             Some(node) => Ok(node),
         }
     }
-    fn in_grid_bounds(&self, position: &[i32; N]) -> bool {
+    fn in_grid_bounds(&self, position: &[T; N]) -> bool {
         self.size
             .iter()
             .zip(position.iter())
-            .all(|(&s, &p)| (0..s).contains(&p))
+            .all(|(&s, &p)| (T::zero()..s).contains(&p))
     }
 }
 
@@ -146,15 +151,15 @@ pub struct SparseGrid<P, D> {
     data: HashMap<P, Node<P, D>>,
     size: P,
 }
-impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
-    fn new(size: &[i32; N]) -> Result<Self, ParaxisError> {
-        if size.iter().any(|s| *s < 0) {
+impl<T: PrimInt + Hash, D: Clone, const N: usize> Grid<[T; N], D> for SparseGrid<[T; N], D> {
+    fn new(size: &[T; N]) -> Result<Self, ParaxisError> {
+        if size.iter().any(|s| *s < T::zero()) {
             return Err(ParaxisError::NegativeSize);
         }
         let data = HashMap::new();
         Ok(Self { data, size: *size })
     }
-    fn insert(&mut self, data: D, position: &[i32; N]) -> Result<(), ParaxisError> {
+    fn insert(&mut self, data: D, position: &[T; N]) -> Result<(), ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -162,7 +167,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
             .insert(*position, Node::new(*position, Some(data)));
         Ok(())
     }
-    fn remove(&mut self, position: &[i32; N]) -> Result<Node<[i32; N], D>, ParaxisError> {
+    fn remove(&mut self, position: &[T; N]) -> Result<Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         };
@@ -175,7 +180,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
             Err(ParaxisError::UnintNode)
         }
     }
-    fn get(&self, position: &[i32; N]) -> Result<&Node<[i32; N], D>, ParaxisError> {
+    fn get(&self, position: &[T; N]) -> Result<&Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -185,7 +190,7 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
             Some(node) => Ok(node),
         }
     }
-    fn get_mut(&mut self, position: &[i32; N]) -> Result<&mut Node<[i32; N], D>, ParaxisError> {
+    fn get_mut(&mut self, position: &[T; N]) -> Result<&mut Node<[T; N], D>, ParaxisError> {
         if !self.in_grid_bounds(position) {
             return Err(ParaxisError::OutOfBounds);
         }
@@ -195,10 +200,10 @@ impl<D: Clone, const N: usize> Grid<[i32; N], D> for SparseGrid<[i32; N], D> {
             Some(node) => Ok(node),
         }
     }
-    fn in_grid_bounds(&self, position: &[i32; N]) -> bool {
+    fn in_grid_bounds(&self, position: &[T; N]) -> bool {
         self.size
             .iter()
             .zip(position.iter())
-            .all(|(&s, &p)| (0..s).contains(&p))
+            .all(|(&s, &p)| (T::zero()..s).contains(&p))
     }
 }

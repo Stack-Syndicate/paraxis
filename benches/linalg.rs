@@ -5,12 +5,6 @@ use paraxis::containers::array::*;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-fn random_matrix(n: usize, seed: u64) -> Array<f64> {
-    let mut rng = StdRng::seed_from_u64(seed);
-    let data: Vec<f64> = (0..n * n).map(|_| rng.random_range(-10.0..10.0)).collect();
-    Array::from_vec_shape(data, &[n, n])
-}
-
 fn random_rect(rows: usize, cols: usize, seed: u64) -> Array<f64> {
     let mut rng = StdRng::seed_from_u64(seed);
     let data: Vec<f64> = (0..rows * cols)
@@ -19,8 +13,12 @@ fn random_rect(rows: usize, cols: usize, seed: u64) -> Array<f64> {
     Array::from_vec_shape(data, &[rows, cols])
 }
 
+fn random_square(n: usize, seed: u64) -> Array<f64> {
+    random_rect(n, n, seed)
+}
+
 fn random_spd_matrix(n: usize, seed: u64) -> Array<f64> {
-    let a = random_matrix(n, seed);
+    let a = random_square(n, seed);
     let at = a.clone().transpose();
     let ata = at.contract(&a);
     let mut data = ata.to_cloned_vec();
@@ -42,7 +40,7 @@ fn random_clustered_spd_matrix(n: usize, seed: u64) -> Array<f64> {
     }
     let diag = Array::from_vec_shape(diag_data, &[n, n]);
 
-    let q = random_matrix(n, seed.wrapping_add(1)).qr().q;
+    let q = random_square(n, seed.wrapping_add(1)).qr().q;
     let qt = q.clone().transpose();
     q.contract(&diag).contract(&qt)
 }
@@ -52,7 +50,7 @@ const SIZES: [usize; 4] = [8, 16, 32, 64];
 fn bench_qr(c: &mut Criterion) {
     let mut group = c.benchmark_group("qr");
     for &n in &SIZES {
-        let m = random_matrix(n, 42);
+        let m = random_square(n, 42);
         group.throughput(Throughput::Elements((n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &m, |b, m| {
             b.iter(|| black_box(m).qr())
@@ -64,7 +62,7 @@ fn bench_qr(c: &mut Criterion) {
 fn bench_lu(c: &mut Criterion) {
     let mut group = c.benchmark_group("lu");
     for &n in &SIZES {
-        let m = random_matrix(n, 43);
+        let m = random_square(n, 43);
         group.throughput(Throughput::Elements((n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &m, |b, m| {
             b.iter(|| black_box(m).lu())
@@ -100,7 +98,7 @@ fn bench_eigen_clustered(c: &mut Criterion) {
 fn bench_solve(c: &mut Criterion) {
     let mut group = c.benchmark_group("solve");
     for &n in &SIZES {
-        let m = random_matrix(n, 48);
+        let m = random_square(n, 48);
         let b_vec = Array::from_vec((0..n).map(|i| i as f64 + 1.0).collect());
         group.throughput(Throughput::Elements(n as u64));
         group.bench_with_input(
@@ -115,7 +113,7 @@ fn bench_solve(c: &mut Criterion) {
 fn bench_det(c: &mut Criterion) {
     let mut group = c.benchmark_group("det");
     for &n in &SIZES {
-        let m = random_matrix(n, 49);
+        let m = random_square(n, 49);
         group.throughput(Throughput::Elements((n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &m, |b, m| {
             b.iter(|| black_box(m).det())
@@ -127,7 +125,7 @@ fn bench_det(c: &mut Criterion) {
 fn bench_inverse(c: &mut Criterion) {
     let mut group = c.benchmark_group("inverse");
     for &n in &SIZES {
-        let m = random_matrix(n, 50);
+        let m = random_square(n, 50);
         group.throughput(Throughput::Elements((n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &m, |b, m| {
             b.iter(|| black_box(m).inverse())
@@ -139,7 +137,7 @@ fn bench_inverse(c: &mut Criterion) {
 fn bench_rank(c: &mut Criterion) {
     let mut group = c.benchmark_group("rank");
     for &n in &SIZES {
-        let m = random_matrix(n, 51);
+        let m = random_square(n, 51);
         group.throughput(Throughput::Elements((n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &m, |b, m| {
             b.iter(|| black_box(m).rank())
@@ -151,8 +149,8 @@ fn bench_rank(c: &mut Criterion) {
 fn bench_contract(c: &mut Criterion) {
     let mut group = c.benchmark_group("contract");
     for &n in &SIZES {
-        let a = random_matrix(n, 52);
-        let b = random_matrix(n, 53);
+        let a = random_square(n, 52);
+        let b = random_square(n, 53);
         group.throughput(Throughput::Elements((n * n * n) as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &(a, b), |bch, (a, b)| {
             bch.iter(|| black_box(a).contract(black_box(b)))
@@ -164,7 +162,7 @@ fn bench_contract(c: &mut Criterion) {
 fn bench_svd_internals(c: &mut Criterion) {
     let mut group = c.benchmark_group("svd_internals");
     for &n in &[16usize, 32, 64] {
-        let m = random_matrix(n, 54);
+        let m = random_square(n, 54);
         group.bench_with_input(BenchmarkId::new("column_norms", n), &m, |b, m| {
             b.iter(|| black_box(m).column_norms())
         });

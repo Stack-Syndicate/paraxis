@@ -114,7 +114,6 @@ fn svd_complex_input_has_correct_properties() {
     let r = m.svd();
     assert!(r.converged);
     let s = r.s.to_cloned_vec();
-
     // singular values are real, nonnegative and sorted descending
     for k in 0..3 {
         assert!(s[k] >= 0.0);
@@ -122,11 +121,9 @@ fn svd_complex_input_has_correct_properties() {
     for k in 0..2 {
         assert!(s[k] >= s[k + 1]);
     }
-
     // rank 2 by construction (row 2 is a multiple of row 1), so one exact zero
     assert!(s[1] > 1e-3);
     assert_eq!(s[2], 0.0);
-
     // u and v have orthonormal columns and rows under the hermitian inner product
     for a in 0..3 {
         for b in 0..3 {
@@ -147,7 +144,6 @@ fn svd_complex_input_has_correct_properties() {
             assert!((vvh - expected).norm() < 1e-10);
         }
     }
-
     // u * s * v^H reproduces m
     for i in 0..3 {
         for j in 0..3 {
@@ -169,12 +165,10 @@ fn svd_wide_input_has_correct_properties() {
     let r = m.svd();
     assert!(r.converged);
     let s = r.s.to_cloned_vec();
-
     // shapes are thin: u is 3x3, s has 3 values, v is 4x3
     assert_eq!(r.u.shape(), &[3, 3]);
     assert_eq!(s.len(), 3);
     assert_eq!(r.v.shape(), &[4, 3]);
-
     // singular values are nonnegative and sorted descending
     for k in 0..3 {
         assert!(s[k] >= 0.0);
@@ -182,7 +176,6 @@ fn svd_wide_input_has_correct_properties() {
     for k in 0..2 {
         assert!(s[k] >= s[k + 1]);
     }
-
     // u is unitary and v has orthonormal columns
     for a in 0..3 {
         for b in 0..3 {
@@ -202,7 +195,6 @@ fn svd_wide_input_has_correct_properties() {
             assert!((vtv - expected).abs() < 1e-10);
         }
     }
-
     // u * s * v^T reproduces m
     for i in 0..3 {
         for j in 0..4 {
@@ -222,18 +214,15 @@ fn svd_singular_values_scale_with_input() {
         .svd()
         .s
         .to_cloned_vec();
-
     for factor in [1e-12, 1e12] {
         let scaled = base.iter().map(|x| x * factor).collect::<Vec<_>>();
         let r = Array::from_slice_shape(&scaled, &[3, 3]).svd();
         assert!(r.converged);
         let s = r.s.to_cloned_vec();
-
         // singular values scale by the same factor as the input
         for k in 0..3 {
             assert!((s[k] / factor - s_base[k] as f64).abs() < 1e-8 * s_base[0]);
         }
-
         // u and v are unaffected by scale and stay orthonormal
         for a in 0..3 {
             for b in 0..3 {
@@ -257,12 +246,10 @@ fn svd_zero_matrix() {
     let r = m.svd();
     assert!(r.converged);
     let s = r.s.to_cloned_vec();
-
     // every singular value is exactly zero
     for k in 0..3 {
         assert_eq!(s[k], 0.0);
     }
-
     // u is still a complete orthonormal basis and v is unitary
     for a in 0..3 {
         for b in 0..3 {
@@ -290,12 +277,10 @@ fn svd_vector_shapes() {
     let s = r.s.to_cloned_vec();
     assert_eq!(s.len(), 1);
     assert!((s[0] - 13.0 as f64).abs() < 1e-12);
-
     // u * s * v^T reproduces the column
     for i in 0..3 {
         assert!((r.u[&[i, 0]] * s[0] * r.v[&[0, 0]] - col[&[i, 0]]).abs() < 1e-12);
     }
-
     // a row vector goes through the wide path and also has one singular value equal to its norm
     let row = Array::from_slice_shape(&[3.0, 4.0, 12.0], &[1, 3]);
     let r = row.svd();
@@ -305,7 +290,6 @@ fn svd_vector_shapes() {
     let s = r.s.to_cloned_vec();
     assert_eq!(s.len(), 1);
     assert!((s[0] - 13.0 as f64).abs() < 1e-12);
-
     // u * s * v^T reproduces the row
     for j in 0..3 {
         assert!((r.u[&[0, 0]] * s[0] * r.v[&[j, 0]] - row[&[0, j]]).abs() < 1e-12);

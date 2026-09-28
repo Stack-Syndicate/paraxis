@@ -1,18 +1,20 @@
+use num_traits::{Float, PrimInt};
+
 use crate::common::structs::Ray;
 
-pub fn grid_id<const N: usize>(size: [i32; N], position: [i32; N]) -> usize {
-    let mut index = 0usize;
-    let mut stride = 1usize;
+pub fn grid_id<T: PrimInt, const N: usize>(size: [T; N], position: [T; N]) -> usize {
+    let mut index = T::zero();
+    let mut stride = T::one();
     for i in (0..N).rev() {
-        index += position[i] as usize * stride;
-        stride *= size[i] as usize;
+        index = index + position[i] * stride;
+        stride = stride * size[i];
     }
-    index
+    index.to_usize().unwrap()
 }
 
 #[inline(always)]
-pub fn squared_distance<const N: usize>(a: &[f32; N], b: &[f32; N]) -> f32 {
-    let mut sum = 0.0;
+pub fn squared_distance<T: Float, const N: usize>(a: &[T; N], b: &[T; N]) -> T {
+    let mut sum = T::zero();
     for i in 0..N {
         let diff = a[i] - b[i];
         sum = diff.mul_add(diff, sum);
@@ -20,22 +22,22 @@ pub fn squared_distance<const N: usize>(a: &[f32; N], b: &[f32; N]) -> f32 {
     sum
 }
 
-pub fn intersect_voxel<const N: usize>(
-    ray: &Ray<N>,
-    point: &[f32; N],
-    voxel_size: f32,
-    min_dist: f32,
-    max_dist: f32,
-) -> Option<f32> {
-    let half_size = voxel_size * 0.5;
+pub fn intersect_voxel<T: Float, const N: usize>(
+    ray: &Ray<T, N>,
+    point: &[T; N],
+    voxel_size: T,
+    min_dist: T,
+    max_dist: T,
+) -> Option<T> {
+    let half_size = voxel_size * T::from(0.5).unwrap();
     let mut entry_dist = min_dist;
     let mut exit_dist = max_dist;
     for (i, p) in point.iter().enumerate().take(N) {
-        let box_min = p - half_size;
-        let box_max = p + half_size;
+        let box_min = *p - half_size;
+        let box_max = *p + half_size;
         let t0 = (box_min - ray.origin[i]) * ray.inv_direction[i];
         let t1 = (box_max - ray.origin[i]) * ray.inv_direction[i];
-        let (near_dist, far_dist) = if ray.inv_direction[i] < 0.0 {
+        let (near_dist, far_dist) = if ray.inv_direction[i] < T::zero() {
             (t1, t0)
         } else {
             (t0, t1)

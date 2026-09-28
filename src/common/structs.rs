@@ -1,5 +1,7 @@
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use num_traits::Float;
+
 #[derive(Debug, Clone)]
 pub struct NodeData<D> {
     pub inner: Option<D>,
@@ -52,16 +54,16 @@ impl<P, D> Node<P, D> {
     }
 }
 
-pub struct Ray<const N: usize> {
-    pub origin: [f32; N],
-    pub direction: [f32; N],
-    pub inv_direction: [f32; N],
+pub struct Ray<T, const N: usize> {
+    pub origin: [T; N],
+    pub direction: [T; N],
+    pub inv_direction: [T; N],
 }
-impl<const N: usize> Ray<N> {
-    pub fn new(origin: [f32; N], direction: [f32; N]) -> Self {
-        let mut inv_direction = [0.0; N];
+impl<T: Float, const N: usize> Ray<T, N> {
+    pub fn new(origin: [T; N], direction: [T; N]) -> Self {
+        let mut inv_direction = [T::zero(); N];
         for i in 0..N {
-            inv_direction[i] = 1.0 / direction[i];
+            inv_direction[i] = T::one() / direction[i];
         }
         Self {
             origin,

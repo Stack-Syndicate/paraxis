@@ -1,4 +1,5 @@
 pub mod index;
+pub mod iter;
 pub mod ops;
 use num_complex::ComplexFloat;
 use num_traits::{Float, Num, NumCast, One, Zero};
@@ -62,7 +63,7 @@ impl<D: Copy> Array<D> {
     ) -> Array<D> {
         assert_eq!(self.shape.len(), 2);
         assert!(row_start <= row_end && row_end <= self.shape[0]);
-        assert!(col_start <= col_end && col_end <= self.shape[1]);
+        assert!(col_start <= col_end && col_end <= self.shape[1]); // HACK: Add a nice error message
         let rows = row_end - row_start;
         let cols = col_end - col_start;
         let mut data = Vec::with_capacity(rows * cols);
@@ -78,7 +79,7 @@ impl<D: Copy> Array<D> {
         assert_eq!(value.shape.len(), 2);
         let (rows, cols) = (value.shape[0], value.shape[1]);
         assert!(row_start + rows <= self.shape[0]);
-        assert!(col_start + cols <= self.shape[1]);
+        assert!(col_start + cols <= self.shape[1]); // HACK: Add a nice error message
         for i in 0..rows {
             for j in 0..cols {
                 self[&[row_start + i, col_start + j]] = value[&[i, j]];
@@ -86,7 +87,7 @@ impl<D: Copy> Array<D> {
         }
     }
     pub fn column(&self, column: usize) -> Array<D> {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
         let m = self.shape[0];
         let mut data = Vec::with_capacity(m);
         for i in 0..m {
@@ -140,7 +141,7 @@ impl<D: Copy> Array<D> {
         }
     }
     pub fn offset(&self, indices: &[usize]) -> usize {
-        assert_eq!(self.strides.len(), indices.len());
+        assert_eq!(self.strides.len(), indices.len()); // HACK: Add a nice error message
         indices
             .iter()
             .zip(&self.shape)
@@ -157,7 +158,7 @@ impl<D: Copy> Array<D> {
         self
     }
     pub fn permute_axes(self, permutation: &[usize]) -> Self {
-        assert_eq!(permutation.len(), self.shape.len());
+        assert_eq!(permutation.len(), self.shape.len()); // HACK: Add a nice error message
         let mut seen = vec![false; self.shape.len()];
         for &axis in permutation {
             assert!(axis < self.shape.len());
@@ -178,7 +179,7 @@ impl<D: Copy> Array<D> {
     }
     pub fn swap_elements(&mut self, a: &[usize], b: &[usize]) {
         assert_eq!(a.len(), self.shape.len());
-        assert_eq!(b.len(), self.shape.len());
+        assert_eq!(b.len(), self.shape.len()); // HACK: Add a nice error message
         let a_offset = a
             .iter()
             .zip(&self.strides)
@@ -194,7 +195,7 @@ impl<D: Copy> Array<D> {
     pub fn swap_rows(&mut self, a: usize, b: usize) {
         assert!(self.shape.len() >= 2);
         assert!(a < self.shape[0]);
-        assert!(b < self.shape[0]);
+        assert!(b < self.shape[0]); // HACK: Add a nice error message
         for j in 0..self.shape[1] {
             self.swap_elements(&[a, j], &[b, j]);
         }
@@ -238,7 +239,7 @@ impl<D: Copy> Array<D> {
 impl<D: Num + Copy> Array<D> {
     pub fn trace(&self) -> D {
         assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(self.shape[0], self.shape[1]); // HACK: Add a nice error message
         let n = self.shape[0];
         let mut trace = D::zero();
         for i in 0..n {
@@ -262,7 +263,7 @@ impl<D: Num + Copy> Array<D> {
     }
     pub fn contract(&self, other: &Array<D>) -> Self {
         let k = self.shape[self.shape.len() - 1];
-        assert_eq!(k, other.shape[0]);
+        assert_eq!(k, other.shape[0]); // HACK: Add a nice error message
         let mut shape = Vec::new();
         shape.extend_from_slice(&self.shape[..self.shape.len() - 1]);
         shape.extend_from_slice(&other.shape[1..]);
@@ -292,7 +293,7 @@ impl<D: Num + Copy> Array<D> {
     pub fn contract_axis(self, other: Array<D>, axis: usize, other_axis: usize) -> Array<D> {
         assert!(axis < self.shape.len());
         assert!(other_axis < other.shape.len());
-        assert_eq!(self.shape[axis], other.shape[other_axis]);
+        assert_eq!(self.shape[axis], other.shape[other_axis]); // HACK: Add a nice error message
         let self_dims = self.shape.len();
         let other_dims = other.shape.len();
         let lhs = self.permute_axes(&Self::move_axis_to_end(self_dims, axis));
@@ -304,7 +305,7 @@ impl<D: Num + Copy> Array<D> {
         assert!(other.shape.len() == 1);
         assert_eq!(self.shape, other.shape);
         assert_eq!(self.shape[0], 3);
-        assert_eq!(other.shape[0], 3);
+        assert_eq!(other.shape[0], 3); // HACK: Add a nice error message
         Array::from_vec(vec![
             self[1] * other[2] - self[2] * other[1],
             self[2] * other[0] - self[0] * other[2],
@@ -312,11 +313,11 @@ impl<D: Num + Copy> Array<D> {
         ])
     }
     pub fn sum(&self) -> D {
-        assert!(!self.data.is_empty());
+        assert!(!self.data.is_empty()); // HACK: Add a nice error message
         self.data.iter().fold(D::zero(), |acc, x| acc + *x)
     }
     pub fn product(&self) -> D {
-        assert!(!self.data.is_empty());
+        assert!(!self.data.is_empty()); // HACK: Add a nice error message
         self.data.iter().fold(D::one(), |acc, x| acc * *x)
     }
 }
@@ -351,6 +352,7 @@ where
     }
 
     pub fn dot(&self, other: &Array<D>) -> D {
+        // FIXME: Add some assertions
         self.data
             .iter()
             .zip(other.data.iter())
@@ -360,18 +362,21 @@ where
         Float::sqrt(self.dot(self).re())
     }
     pub fn dist(&self, other: &Array<D>) -> D::Real {
+        // FIXME: Add some assertions
         (other - self).norm()
     }
     pub fn normalize(self) -> Array<D> {
         let norm = self.norm();
-        assert!(norm > D::Real::zero());
+        assert!(norm > D::Real::zero()); // HACK: Add a nice error message
         self / Self::scalar(norm)
     }
     pub fn mean(&self) -> D {
+        // FIXME: Add some assertions/early exits
         let n: D = NumCast::from(self.data.len()).unwrap();
         self.data.iter().fold(D::zero(), |acc, &x| acc + x) / n
     }
     pub fn variance(&self) -> D::Real {
+        // FIXME: Add some assertions/early exits
         let m = self.mean();
         let n = Self::real(self.data.len() as f64);
         self.data.iter().fold(D::Real::zero(), |acc, &x| {
@@ -383,6 +388,7 @@ where
         Float::sqrt(self.variance())
     }
     pub fn conj_transpose(self) -> Array<D> {
+        // FIXME: Add an early exit
         let t = self.transpose();
         let mut data = Vec::with_capacity(t.data.len());
         for offset in 0..t.data.len() {
@@ -399,7 +405,7 @@ where
         self.qr_impl(false)
     }
     fn qr_impl(&self, pivoting: bool) -> QrResult<D> {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
         let m = self.shape[0];
         let n = self.shape[1];
         let steps = m.min(n);
@@ -539,7 +545,7 @@ where
     }
     pub fn lu(&self) -> LuResult<D> {
         assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(self.shape[0], self.shape[1]); // HACK: Add a nice error message
         let n = self.shape[0];
         let mut l = Array::identity(n);
         let mut u = self.clone();
@@ -579,7 +585,7 @@ where
         assert_eq!(self.shape.len(), 2);
         assert_eq!(self.shape[0], self.shape[1]);
         assert_eq!(b.shape.len(), 1);
-        assert_eq!(b.shape[0], self.shape[0]);
+        assert_eq!(b.shape[0], self.shape[0]); // HACK: Add a nice error message
         let n = self.shape[0];
         let (l, u, pivots) = (&lu.l, &lu.u, &lu.pivots);
         let mut y = vec![D::zero(); n];
@@ -607,7 +613,7 @@ where
         self.solve_with_lu(b, &lu)
     }
     pub fn rank(&self) -> usize {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
         let qr = self.qr();
         let n = qr.r.shape[0].min(qr.r.shape[1]);
         let scale = (0..n)
