@@ -133,7 +133,7 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for KDTree
         position: &[T; N],
         k: usize,
     ) -> Result<Vec<&Node<[T; N], D>>, ParaxisError> {
-        if k == 0 {
+        if k == 0 || self.data.is_empty() {
             return Ok(vec![]);
         }
         let mut best_dists = vec![(T::max_value(), 0); k];
@@ -196,6 +196,7 @@ pub struct BIHierarchy<P, D> {
     pub data: Vec<Node<P, D>>,
     insertions: usize,
 }
+
 impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHierarchy<[T; N], D> {
     fn new(mut raw_data: Vec<([T; N], D)>) -> Self {
         let data_len = raw_data.len();
@@ -221,7 +222,6 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                 continue;
             }
             let current_index = data.len();
-
             if item.list.len() == 1 {
                 let position = item.list[0].0;
                 let payload = unsafe { std::ptr::read(&item.list[0].1) };
@@ -235,7 +235,7 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                 }
                 continue;
             }
-            let (axis, _, min, max) = (0..N)
+            let axis = (0..N)
                 .map(|axis| {
                     let (min, max) = item
                         .list
@@ -243,20 +243,14 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                         .fold((T::infinity(), -T::infinity()), |(min, max), p| {
                             (min.min(p.0[axis]), max.max(p.0[axis]))
                         });
-                    (axis, max - min, min, max)
+                    (axis, max - min)
                 })
                 .max_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap();
-            let split_plane = (min + max) * T::from(0.5).unwrap();
-            let middle_index = item
-                .list
-                .iter_mut()
-                .partition_in_place(|p| p.0[axis] <= split_plane);
-            let middle_index = if middle_index == 0 || middle_index == item.list.len() {
-                item.list.len() / 2
-            } else {
-                middle_index
-            };
+                .unwrap()
+                .0;
+            let middle_index = item.list.len() / 2;
+            item.list
+                .select_nth_unstable_by(middle_index, |a, b| a.0[axis].total_cmp(&b.0[axis]));
             let (left, right) = item.list.split_at_mut(middle_index);
             let l_max = left.iter().map(|p| p.0[axis]).fold(-T::infinity(), T::max);
             let r_min = right.iter().map(|p| p.0[axis]).fold(T::infinity(), T::min);
@@ -303,25 +297,78 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
             return;
         }
         self.insertions += 1;
+        let new_position = *position;
         let mut current_index = 0;
-        let mut depth = 0;
         loop {
-            let axis = depth % N;
-            let node = &self.data[current_index];
-            let go_prev = position[axis] <= node.position[axis];
-            let child = if go_prev { node.prev } else { node.next };
-            if child == usize::MAX {
+            if self.data[current_index].bounds.is_some() {
+                let (axis, go_left, child) = {
+                    let node = &self.data[current_index];
+                    let (l_bound, r_bound) = node.bounds.as_ref().unwrap();
+                    let axis = node.position[0].to_usize().unwrap();
+                    let l_max = l_bound[axis];
+                    let r_min = r_bound[axis];
+                    let split = (l_max + r_min) * T::from(0.5).unwrap();
+                    let go_left = new_position[axis] <= split;
+                    let child = if go_left { node.prev } else { node.next };
+                    (axis, go_left, child)
+                };
+                {
+                    let (l_bound, r_bound) = self.data[current_index].bounds.as_mut().unwrap();
+                    if go_left {
+                        l_bound[axis] = l_bound[axis].max(new_position[axis]);
+                    } else {
+                        r_bound[axis] = r_bound[axis].min(new_position[axis]);
+                    }
+                }
+                if child != usize::MAX {
+                    current_index = child;
+                    continue;
+                }
                 let new_index = self.data.len();
-                self.data.push(Node::new(*position, Some(data)));
-                if go_prev {
+                self.data.push(Node::new(new_position, Some(data)));
+                if go_left {
                     self.data[current_index].prev = new_index;
                 } else {
                     self.data[current_index].next = new_index;
                 }
                 break;
             }
-            current_index = child;
-            depth += 1;
+            let old_position = self.data[current_index].position;
+            let old_payload = self.data[current_index]
+                .read()
+                .inner
+                .clone()
+                .expect("BIHierarchy leaf without payload");
+            let axis = (0..N)
+                .map(|axis| {
+                    let diff = (old_position[axis] - new_position[axis]).abs();
+                    (axis, diff)
+                })
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+                .unwrap()
+                .0;
+            let (left_position, left_payload, right_position, right_payload) =
+                if old_position[axis] <= new_position[axis] {
+                    (old_position, old_payload, new_position, data)
+                } else {
+                    (new_position, data, old_position, old_payload)
+                };
+            let left_index = self.data.len();
+            self.data.push(Node::new(left_position, Some(left_payload)));
+            let right_index = self.data.len();
+            self.data
+                .push(Node::new(right_position, Some(right_payload)));
+            let mut l_bound = [T::zero(); N];
+            let mut r_bound = [T::zero(); N];
+            l_bound[axis] = left_position[axis];
+            r_bound[axis] = right_position[axis];
+            let mut internal_position = [T::zero(); N];
+            internal_position[0] = T::from(axis).unwrap();
+            let mut internal = Node::new_bounded(internal_position, (l_bound, r_bound), None);
+            internal.prev = left_index;
+            internal.next = right_index;
+            self.data[current_index] = internal;
+            break;
         }
         if self.insertions > N * N {
             self.rebalance();
@@ -342,6 +389,8 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
             })
             .collect();
         if items.is_empty() {
+            self.data = Vec::new();
+            self.insertions = 0;
             return;
         }
         let mut new_tree = Self::new(items);
@@ -358,10 +407,9 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
         }
         let mut best_dists = vec![(T::max_value(), 0); k];
         let mut found = 0;
-        let mut stack = [0; 128];
+        let mut stack = [0usize; 128];
         let mut stack_pointer = 1;
         let mut worst_dist = T::max_value();
-
         while stack_pointer > 0 {
             stack_pointer -= 1;
             let index = stack[stack_pointer];
@@ -372,12 +420,14 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                 let r_min = r_bound[axis];
                 let q_val = position[axis];
                 let left_dist_1d = if q_val > l_max {
-                    (q_val - l_max) * (q_val - l_max)
+                    let diff = q_val - l_max;
+                    diff * diff
                 } else {
                     T::zero()
                 };
                 let right_dist_1d = if q_val < r_min {
-                    (r_min - q_val) * (r_min - q_val)
+                    let diff = r_min - q_val;
+                    diff * diff
                 } else {
                     T::zero()
                 };
@@ -387,35 +437,29 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                     } else {
                         (node.next, right_dist_1d, node.prev, left_dist_1d)
                     };
-
                 if far_child != usize::MAX && (found < k || far_dist < worst_dist) {
                     stack[stack_pointer] = far_child;
                     stack_pointer += 1;
                 }
-
                 if near_child != usize::MAX && (found < k || near_dist < worst_dist) {
                     stack[stack_pointer] = near_child;
                     stack_pointer += 1;
                 }
             } else {
                 let dist = squared_distance(&node.position, position);
-
                 if found < k {
                     let mut i = found;
-
                     while i > 0 && dist < best_dists[i - 1].0 {
                         best_dists[i] = best_dists[i - 1];
                         i -= 1;
                     }
                     best_dists[i] = (dist, index);
                     found += 1;
-
                     if found == k {
                         worst_dist = best_dists[k - 1].0;
                     }
                 } else if dist < worst_dist {
                     let mut i = k - 1;
-
                     while i > 0 && dist < best_dists[i - 1].0 {
                         best_dists[i] = best_dists[i - 1];
                         i -= 1;
@@ -425,7 +469,6 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
                 }
             }
         }
-
         let mut out = Vec::with_capacity(found);
         for &(_, index) in &best_dists[..found] {
             out.push(&self.data[index]);
@@ -433,6 +476,7 @@ impl<T: Float + TotalOrder, D: Clone, const N: usize> Tree<[T; N], D> for BIHier
         Ok(out)
     }
 }
+
 impl<T: Float, const N: usize, D> BIHierarchy<[T; N], D> {
     pub fn trace_ray(
         &self,
@@ -483,14 +527,12 @@ impl<T: Float, const N: usize, D> BIHierarchy<[T; N], D> {
                     stack[stack_ptr] = (near_child, node_min_dist, near_t_max);
                     stack_ptr += 1;
                 }
-            } else {
-                if let Some(hit_dist) =
-                    intersect_voxel(&ray, &node.position, voxel_size, node_min_dist, max_dist)
-                    && hit_dist < max_dist
-                {
-                    max_dist = hit_dist;
-                    closest_hit = Some((hit_dist, node));
-                }
+            } else if let Some(hit_dist) =
+                intersect_voxel(&ray, &node.position, voxel_size, node_min_dist, max_dist)
+                && hit_dist < max_dist
+            {
+                max_dist = hit_dist;
+                closest_hit = Some((hit_dist, node));
             }
         }
         closest_hit
