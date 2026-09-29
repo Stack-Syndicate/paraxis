@@ -1,9 +1,12 @@
 use std::hint::black_box;
+use std::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use paraxis::containers::array::*;
 use rand::prelude::*;
 use rand::rngs::StdRng;
+
+const SIZES: [usize; 4] = [8, 16, 32, 64];
 
 fn random_rect(rows: usize, cols: usize, seed: u64) -> Array<f64> {
     let mut rng = StdRng::seed_from_u64(seed);
@@ -44,8 +47,6 @@ fn random_clustered_spd_matrix(n: usize, seed: u64) -> Array<f64> {
     let qt = q.clone().transpose();
     q.contract(&diag).contract(&qt)
 }
-
-const SIZES: [usize; 4] = [8, 16, 32, 64];
 
 fn bench_qr(c: &mut Criterion) {
     let mut group = c.benchmark_group("qr");
@@ -173,17 +174,19 @@ fn bench_svd_internals(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_qr,
-    bench_lu,
-    bench_eigen,
-    bench_eigen_clustered,
-    bench_solve,
-    bench_det,
-    bench_inverse,
-    bench_rank,
-    bench_contract,
-    bench_svd_internals,
-);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(10));
+    targets =
+        bench_qr,
+        bench_lu,
+        bench_eigen,
+        bench_eigen_clustered,
+        bench_solve,
+        bench_det,
+        bench_inverse,
+        bench_rank,
+        bench_contract,
+        bench_svd_internals,
+}
 criterion_main!(benches);
