@@ -1,11 +1,11 @@
-use crate::containers::array::Array;
+use crate::containers::array::{Array, asserts::assert_array_shapes_eq};
 use num_traits::Num;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 impl<D: Num + Copy> Add for Array<D> {
     type Output = Array<D>;
     fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .into_iter()
@@ -22,7 +22,7 @@ impl<D: Num + Copy> Add for Array<D> {
 impl<D: Num + Copy> Add<&'_ Array<D>> for &Array<D> {
     type Output = Array<D>;
     fn add(self, rhs: &'_ Array<D>) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .iter()
@@ -39,7 +39,7 @@ impl<D: Num + Copy> Add<&'_ Array<D>> for &Array<D> {
 impl<D: Num + Copy> Sub for Array<D> {
     type Output = Array<D>;
     fn sub(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .into_iter()
@@ -56,7 +56,7 @@ impl<D: Num + Copy> Sub for Array<D> {
 impl<D: Num + Copy> Sub<&'_ Array<D>> for &Array<D> {
     type Output = Array<D>;
     fn sub(self, rhs: &'_ Array<D>) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .iter()
@@ -73,7 +73,7 @@ impl<D: Num + Copy> Sub<&'_ Array<D>> for &Array<D> {
 impl<D: Num + Copy> Mul for Array<D> {
     type Output = Array<D>;
     fn mul(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .into_iter()
@@ -90,7 +90,7 @@ impl<D: Num + Copy> Mul for Array<D> {
 impl<D: Num + Copy> Mul<&'_ Array<D>> for &Array<D> {
     type Output = Array<D>;
     fn mul(self, rhs: &'_ Array<D>) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .iter()
@@ -107,7 +107,7 @@ impl<D: Num + Copy> Mul<&'_ Array<D>> for &Array<D> {
 impl<D: Num + Copy> Div for Array<D> {
     type Output = Array<D>;
     fn div(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .into_iter()
@@ -124,7 +124,7 @@ impl<D: Num + Copy> Div for Array<D> {
 impl<D: Num + Copy> Div<&'_ Array<D>> for &Array<D> {
     type Output = Array<D>;
     fn div(self, rhs: &'_ Array<D>) -> Self::Output {
-        assert_eq!(self.shape, rhs.shape); // HACK: Add a nice error message
+        assert_array_shapes_eq(self.len(), rhs.len());
         let data = self
             .data
             .iter()
@@ -246,5 +246,19 @@ impl<D: Num + Neg<Output = D> + Copy> Neg for &Array<D> {
             shape: self.shape.clone(),
             strides: self.strides.clone(),
         }
+    }
+}
+impl<D: Num + Copy> PartialEq for Array<D> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.shape != other.shape {
+            return false;
+        }
+        if self.strides == other.strides {
+            return self.data == other.data;
+        }
+        (0..self.data.len()).all(|offset| {
+            let indices = Self::indices_from_offset(offset, &self.shape);
+            self.data[self.offset(&indices)] == other.data[other.offset(&indices)]
+        })
     }
 }

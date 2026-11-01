@@ -1,5 +1,6 @@
 //! This module holds the main tensor/vector abstraction [`Array`]
 
+mod asserts;
 mod index;
 mod iter;
 mod ops;
@@ -33,7 +34,7 @@ pub struct QrResult<D> {
 }
 /// Stores the result of [`Array::lu`]
 #[derive(Debug, Clone)]
-pub struct LuResult<D> {
+pub struct LuResult<D: Clone> {
     /// Unit lower triangular matrix L
     pub l: Array<D>,
     /// Upper triangular matrix U
@@ -93,9 +94,15 @@ impl<D: Copy> Array<D> {
         col_start: usize,
         col_end: usize,
     ) -> Array<D> {
-        assert_eq!(self.shape.len(), 2);
-        assert!(row_start <= row_end && row_end <= self.shape[0]);
-        assert!(col_start <= col_end && col_end <= self.shape[1]); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert!(
+            row_start <= row_end && row_end <= self.shape[0],
+            "Row range out of bounds."
+        );
+        assert!(
+            col_start <= col_end && col_end <= self.shape[1],
+            "Column range out of bounds."
+        );
         let rows = row_end - row_start;
         let cols = col_end - col_start;
         let mut data = Vec::with_capacity(rows * cols);
@@ -110,11 +117,17 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if either array is not 2D or the block does not fit
     pub fn set_submatrix(&mut self, row_start: usize, col_start: usize, value: &Array<D>) {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(value.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(value.shape.len(), 2, "Value is not 2D.");
         let (rows, cols) = (value.shape[0], value.shape[1]);
-        assert!(row_start + rows <= self.shape[0]);
-        assert!(col_start + cols <= self.shape[1]); // HACK: Add a nice error message
+        assert!(
+            row_start + rows <= self.shape[0],
+            "Block rows out of bounds."
+        );
+        assert!(
+            col_start + cols <= self.shape[1],
+            "Block columns out of bounds."
+        );
         for i in 0..rows {
             for j in 0..cols {
                 self[&[row_start + i, col_start + j]] = value[&[i, j]];
@@ -125,7 +138,7 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if the array is not 2D
     pub fn column(&self, column: usize) -> Array<D> {
-        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let m = self.shape[0];
         let mut data = Vec::with_capacity(m);
         for i in 0..m {
@@ -192,13 +205,17 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if `indices` has the wrong length or is out of bounds
     pub fn offset(&self, indices: &[usize]) -> usize {
-        assert_eq!(self.strides.len(), indices.len()); // HACK: Add a nice error message
+        assert_eq!(
+            self.strides.len(),
+            indices.len(),
+            "Indices length does not match the number of strides."
+        );
         indices
             .iter()
             .zip(&self.shape)
             .zip(&self.strides)
             .map(|((index, shape), stride)| {
-                assert!(*index < *shape);
+                assert!(*index < *shape, "Index out of bounds for axis.");
                 index * stride
             })
             .sum()
@@ -213,11 +230,18 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if `permutation` is not a valid permutation of the axes
     pub fn permute_axes(self, permutation: &[usize]) -> Self {
-        assert_eq!(permutation.len(), self.shape.len()); // HACK: Add a nice error message
+        assert_eq!(
+            permutation.len(),
+            self.shape.len(),
+            "Permutation index count does not match the length of the shape."
+        );
         let mut seen = vec![false; self.shape.len()];
         for &axis in permutation {
-            assert!(axis < self.shape.len());
-            assert!(!seen[axis]);
+            assert!(
+                axis < self.shape.len(),
+                "Axis in permutation is out of bounds."
+            );
+            assert!(!seen[axis], "Axis appears more than once in permutation.");
             seen[axis] = true;
         }
         let mut shape = vec![0; self.shape.len()];
@@ -236,8 +260,16 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if `a` or `b` does not have one index per axis
     pub fn swap_elements(&mut self, a: &[usize], b: &[usize]) {
-        assert_eq!(a.len(), self.shape.len());
-        assert_eq!(b.len(), self.shape.len()); // HACK: Add a nice error message
+        assert_eq!(
+            a.len(),
+            self.shape.len(),
+            "Indices a do not match the number of axes."
+        );
+        assert_eq!(
+            b.len(),
+            self.shape.len(),
+            "Indices b do not match the number of axes."
+        );
         let a_offset = a
             .iter()
             .zip(&self.strides)
@@ -254,9 +286,9 @@ impl<D: Copy> Array<D> {
     ///
     /// Panics if the array has fewer than 2 dimensions or a row is out of bounds
     pub fn swap_rows(&mut self, a: usize, b: usize) {
-        assert!(self.shape.len() >= 2);
-        assert!(a < self.shape[0]);
-        assert!(b < self.shape[0]); // HACK: Add a nice error message
+        assert!(self.shape.len() >= 2, "Array has fewer than 2 dimensions.");
+        assert!(a < self.shape[0], "Row A index out of bounds.");
+        assert!(b < self.shape[0], "Row B index out of bounds.");
         for j in 0..self.shape[1] {
             self.swap_elements(&[a, j], &[b, j]);
         }
@@ -302,8 +334,11 @@ impl<D: Num + Copy> Array<D> {
     ///
     /// Panics if the array is not a square matrix
     pub fn trace(&self) -> D {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(
+            self.shape[0], self.shape[1],
+            "Array row count and column count do not match."
+        );
         let n = self.shape[0];
         let mut trace = D::zero();
         for i in 0..n {
@@ -330,27 +365,43 @@ impl<D: Num + Copy> Array<D> {
     ///
     /// Panics if the contracted axes differ in size
     pub fn contract(&self, other: &Array<D>) -> Self {
-        let k = self.shape[self.shape.len() - 1];
-        assert_eq!(k, other.shape[0]); // HACK: Add a nice error message
-        let mut shape = Vec::new();
-        shape.extend_from_slice(&self.shape[..self.shape.len() - 1]);
+        let last_index = self.shape.len() - 1;
+        let k = self.shape[last_index];
+        assert_eq!(
+            k, other.shape[0],
+            "Sizes of contracted axes differ in length."
+        );
+        let mut shape = Vec::with_capacity(self.shape.len() + other.shape.len() - 2);
+        shape.extend_from_slice(&self.shape[..last_index]);
         shape.extend_from_slice(&other.shape[1..]);
         let size = shape.iter().product();
         let mut data = Vec::with_capacity(size);
-        for offset in 0..size {
-            let indices = Self::indices_from_offset(offset, &shape);
-            let mut lhs_indices = vec![0usize; self.shape.len()];
-            let mut rhs_indices = vec![0usize; other.shape.len()];
-            let lhs_dims = self.shape.len() - 1;
-            lhs_indices[..lhs_dims].copy_from_slice(&indices[..lhs_dims]);
-            rhs_indices[1..].copy_from_slice(&indices[lhs_dims..]);
+        let lhs_k_stride = self.strides[last_index];
+        let rhs_k_stride = other.strides[0];
+        let mut indices = vec![0usize; shape.len()];
+        for _ in 0..size {
+            let mut lhs_offset = 0;
+            let mut rhs_offset = 0;
+            for i in 0..last_index {
+                lhs_offset += indices[i] * self.strides[i];
+            }
+            for i in 0..other.shape.len() - 1 {
+                rhs_offset += indices[last_index + i] * other.strides[i + 1];
+            }
             let mut sum = D::zero();
-            for ki in 0..self.shape[self.shape.len() - 1] {
-                lhs_indices[lhs_dims] = ki;
-                rhs_indices[0] = ki;
-                sum = sum + self[self.offset(&lhs_indices)] * other[other.offset(&rhs_indices)];
+            for k in 0..self.shape[last_index] {
+                sum = sum
+                    + self.data[lhs_offset + k * lhs_k_stride]
+                        * other.data[rhs_offset + k * rhs_k_stride];
             }
             data.push(sum);
+            for axis in (0..shape.len()).rev() {
+                indices[axis] += 1;
+                if indices[axis] < shape[axis] {
+                    break;
+                }
+                indices[axis] = 0;
+            }
         }
         Self {
             data,
@@ -362,9 +413,15 @@ impl<D: Num + Copy> Array<D> {
     ///
     /// Panics if an axis is out of bounds or the contracted axes differ in size
     pub fn contract_axis(self, other: Array<D>, axis: usize, other_axis: usize) -> Array<D> {
-        assert!(axis < self.shape.len());
-        assert!(other_axis < other.shape.len());
-        assert_eq!(self.shape[axis], other.shape[other_axis]); // HACK: Add a nice error message
+        assert!(axis < self.shape.len(), "Axis index is out of bounds.");
+        assert!(
+            other_axis < other.shape.len(),
+            "Other axis index is out of bounds."
+        );
+        assert_eq!(
+            self.shape[axis], other.shape[other_axis],
+            "Contracted axes differ in length."
+        );
         let self_dims = self.shape.len();
         let other_dims = other.shape.len();
         let lhs = self.permute_axes(&Self::move_axis_to_end(self_dims, axis));
@@ -375,29 +432,32 @@ impl<D: Num + Copy> Array<D> {
     ///
     /// Panics if either array is not a vector of length 3
     pub fn cross(&self, other: &Array<D>) -> Array<D> {
-        assert!(self.shape.len() == 1);
-        assert!(other.shape.len() == 1);
-        assert_eq!(self.shape, other.shape);
-        assert_eq!(self.shape[0], 3);
-        assert_eq!(other.shape[0], 3); // HACK: Add a nice error message
+        assert!(self.shape.len() == 1, "Array is not 1D.");
+        assert!(other.shape.len() == 1, "Other array is not 1D.");
+        assert_eq!(
+            self.shape, other.shape,
+            "Array shape does not match the other array's shape."
+        );
+        assert_eq!(self.shape[0], 3, "Array is not of length 3.");
+        assert_eq!(other.shape[0], 3, "Other array is not of length 3.");
         Array::from_vec(vec![
             self[1] * other[2] - self[2] * other[1],
             self[2] * other[0] - self[0] * other[2],
             self[0] * other[1] - self[1] * other[0],
         ])
     }
-    /// Returns the sum of all elements
-    ///
-    /// Panics if the array is empty
+    /// Returns the sum of all elements, or zero if the array is empty
     pub fn sum(&self) -> D {
-        assert!(!self.data.is_empty()); // HACK: Add a nice error message
+        if self.data.is_empty() {
+            return D::zero();
+        }
         self.data.iter().fold(D::zero(), |acc, x| acc + *x)
     }
     /// Returns the product of all elements
     ///
     /// Panics if the array is empty
     pub fn product(&self) -> D {
-        assert!(!self.data.is_empty()); // HACK: Add a nice error message
+        assert!(!self.data.is_empty(), "Array is empty.");
         self.data.iter().fold(D::one(), |acc, x| acc * *x)
     }
 }
@@ -432,6 +492,26 @@ where
     fn scalar(x: D::Real) -> D {
         NumCast::from(x).unwrap()
     }
+    /// Creates a 1D array of `size` evenly spaced values starting at `start`
+    ///
+    /// If `inclusive` is true the last value is `end`, otherwise `end` is excluded
+    pub fn linspace(start: D, end: D, size: usize, inclusive: bool) -> Array<D> {
+        if size < 2 {
+            return Array::from_vec(vec![start; size]);
+        }
+        let steps: D = NumCast::from(if inclusive { size - 1 } else { size }).unwrap();
+        let step = (end - start) / steps;
+        let mut data = (0..size)
+            .map(|i| {
+                let i: D = NumCast::from(i).unwrap();
+                start + step * i
+            })
+            .collect::<Vec<_>>();
+        if inclusive {
+            data[size - 1] = end;
+        }
+        Array::from_vec(data)
+    }
     /// Returns the inner product of `self` and `other`, conjugating `other`
     pub fn dot(&self, other: &Array<D>) -> D {
         // FIXME: Add some assertions
@@ -454,7 +534,7 @@ where
     /// Panics if the norm is zero
     pub fn normalize(self) -> Array<D> {
         let norm = self.norm();
-        assert!(norm > D::Real::zero()); // HACK: Add a nice error message
+        assert!(norm > D::Real::zero(), "Array norm is zero.");
         self / Self::scalar(norm)
     }
     /// Returns the mean of all elements
@@ -496,7 +576,7 @@ where
         self.qr_impl(true)
     }
     fn qr_impl(&self, pivoting: bool) -> QrResult<D> {
-        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let threshold = Float::sqrt(<D::Real as Float>::epsilon());
         let m = self.shape[0];
         let n = self.shape[1];
@@ -694,8 +774,8 @@ where
     ///
     /// Panics if the array is not a square matrix
     pub fn lu(&self) -> LuResult<D> {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(self.shape[0], self.shape[1], "Array is not square.");
         let n = self.shape[0];
         let mut l = Array::identity(n);
         let mut u = self.clone();
@@ -732,10 +812,13 @@ where
         }
     }
     fn solve_with_lu(&self, b: &Array<D>, lu: &LuResult<D>) -> Array<D> {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
-        assert_eq!(b.shape.len(), 1);
-        assert_eq!(b.shape[0], self.shape[0]); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(self.shape[0], self.shape[1], "Array is not square.");
+        assert_eq!(b.shape.len(), 1, "Array B is not 1D.");
+        assert_eq!(
+            b.shape[0], self.shape[0],
+            "Array B length does not match the number of rows."
+        );
         let n = self.shape[0];
         let (l, u, pivots) = (&lu.l, &lu.u, &lu.pivots);
         let mut y = vec![D::zero(); n];
@@ -749,7 +832,10 @@ where
         let mut x = vec![D::zero(); n];
         for i in (0..n).rev() {
             let diag = u[&[i, i]];
-            assert!(ComplexFloat::abs(diag) > Self::real(1e-12));
+            assert!(
+                ComplexFloat::abs(diag) > Self::real(1e-12),
+                "Matrix is singular."
+            );
             let mut sum = y[i];
             for j in (i + 1)..n {
                 sum = sum - u[&[i, j]] * x[j];
@@ -769,7 +855,7 @@ where
     ///
     /// Panics if the array is not 2D
     pub fn rank(&self) -> usize {
-        assert_eq!(self.shape.len(), 2); // HACK: Add a nice error message
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let qr = self.qr();
         let n = qr.r.shape[0].min(qr.r.shape[1]);
         let scale = (0..n)
@@ -784,8 +870,8 @@ where
     ///
     /// Panics if the array is not a square matrix
     pub fn det(&self) -> D {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(self.shape[0], self.shape[1], "Array is not square.");
         let lu = self.lu();
         let mut det = D::one();
         for i in 0..self.shape[0] {
@@ -800,8 +886,8 @@ where
     ///
     /// Panics if the array is not square or is singular
     pub fn inverse(&self) -> Array<D> {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(self.shape[0], self.shape[1], "Array is not square.");
         let n = self.shape[0];
         let lu = self.lu();
         let mut data = vec![D::zero(); n * n];
@@ -819,7 +905,7 @@ where
     ///
     /// Panics if the array is not 2D
     pub fn column_norms(&self) -> Vec<D::Real> {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let (rows, cols) = (self.shape[0], self.shape[1]);
         (0..cols)
             .map(|j| {
@@ -837,7 +923,7 @@ where
     ///
     /// Panics if the array is not 2D
     pub fn normalize_columns(&self, zero_floor: D::Real) -> (Array<D>, Vec<D::Real>) {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let (rows, cols) = (self.shape[0], self.shape[1]);
         let norms = self.column_norms();
         let mut data = vec![D::zero(); rows * cols];
@@ -855,8 +941,8 @@ where
     ///
     /// Panics if the array is not a square matrix
     pub fn eigen(&self) -> EigenResult<D> {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(self.shape[0], self.shape[1]);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
+        assert_eq!(self.shape[0], self.shape[1], "Array is not square.");
         let n = self.shape[0];
         let mut a = vec![D::zero(); n * n];
         let mut scale_sq = D::Real::zero();
@@ -1142,7 +1228,7 @@ where
     ///
     /// Panics if the array is not 2D
     pub fn svd(&self) -> SvdResult<D> {
-        assert_eq!(self.shape.len(), 2);
+        assert_eq!(self.shape.len(), 2, "Array is not 2D.");
         let wide = self.shape[0] < self.shape[1];
         let (m, n) = if wide {
             (self.shape[1], self.shape[0])
